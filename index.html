@@ -5,17 +5,40 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="Mina Score">
-  <title>Mina Ping Pong Counter</title>
+  <meta name="apple-mobile-web-app-title" content="Mina Hub">
+  <title>Mina Ultimate Scoreboard Hub Pro</title>
   <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
   <style>
     :root {
-      --bg-color: #0d1117;
+      --bg: #0d1117;
       --card-bg: #161b22;
-      --p1-color: #238636;
-      --p2-color: #1f6feb;
-      --text-color: #f0f6fc;
-      --accent-yellow: #d29922;
+      --border: #30363d;
+      --text: #f0f6fc;
+      --text-sub: #8b949e;
+      --accent: #58a6ff;
+      --green: #238636;
+      --green-bright: #3fb950;
+      --red: #da3633;
+      --yellow: #d29922;
+      --purple: #8957e5;
+      --orange: #f0883e;
+      --p1: #238636;
+      --p2: #1f6feb;
+    }
+
+    [data-theme="light"] {
+      --bg: #f6f8fa;
+      --card-bg: #ffffff;
+      --border: #d0d7de;
+      --text: #1f2328;
+      --text-sub: #656d76;
+      --accent: #0969da;
+      --green: #1f883d;
+      --green-bright: #1a7f37;
+      --red: #cf222e;
+      --yellow: #9a6700;
+      --purple: #8250df;
+      --orange: #bc4c00;
     }
 
     * {
@@ -28,15 +51,16 @@
     }
 
     body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-      background-color: var(--bg-color);
-      color: var(--text-color);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background-color: var(--bg);
+      color: var(--text);
       height: 100vh;
       display: flex;
       flex-direction: column;
       overflow: hidden;
       padding-top: env(safe-area-inset-top);
       padding-bottom: env(safe-area-inset-bottom);
+      transition: background-color 0.2s, color 0.2s;
     }
 
     header {
@@ -45,315 +69,563 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
-      border-bottom: 1px solid #30363d;
+      border-bottom: 1px solid var(--border);
     }
 
-    h1 {
+    .brand {
       font-size: 1.1rem;
-      font-weight: 700;
-      letter-spacing: 0.5px;
+      font-weight: 800;
+      background: linear-gradient(135deg, var(--accent), var(--purple));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
     }
 
-    .preset-select {
-      background: #21262d;
-      color: var(--text-color);
-      border: 1px solid #30363d;
-      padding: 6px 12px;
-      border-radius: 6px;
-      font-size: 0.85rem;
-      outline: none;
-    }
-
-    .match-info {
-      text-align: center;
-      padding: 8px 0;
-      background: #161b22;
-      font-size: 0.9rem;
-      color: #8b949e;
-      border-bottom: 1px solid #30363d;
-    }
-
-    .scoreboard {
+    .hdr-btns {
       display: flex;
-      flex: 1;
-      width: 100%;
+      gap: 8px;
     }
 
-    .player-zone {
+    .btn-icon {
+      background: #21262d;
+      color: var(--text);
+      border: 1px solid var(--border);
+      padding: 6px 12px;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    /* SCREEN MANAGEMENT */
+    .view-screen {
+      flex: 1;
+      display: none;
+      flex-direction: column;
+      overflow-y: auto;
+      padding: 16px;
+    }
+
+    .view-screen.active {
+      display: flex;
+    }
+
+    /* MENU UI */
+    .menu-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
+      margin-top: 10px;
+    }
+
+    .game-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 18px 12px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      cursor: pointer;
+      transition: transform 0.1s, border-color 0.2s;
+    }
+
+    .game-card:active {
+      transform: scale(0.96);
+      border-color: var(--accent);
+    }
+
+    .game-card .icon { font-size: 2.2rem; margin-bottom: 6px; }
+    .game-card h3 { font-size: 0.95rem; font-weight: 700; margin-bottom: 2px; }
+    .game-card p { font-size: 0.72rem; color: var(--text-sub); }
+
+    /* PING PONG & DUAL MODE */
+    .scoreboard-pp { display: flex; flex: 1; width: 100%; }
+    .pp-zone {
       flex: 1;
       display: flex;
       flex-direction: column;
       justify-content: space-between;
       align-items: center;
       padding: 20px 10px;
-      position: relative;
       cursor: pointer;
-      transition: background-color 0.1s ease;
     }
 
-    .player-zone:active {
-      filter: brightness(1.2);
-    }
+    .p1-zone { background: rgba(35, 134, 54, 0.12); border-right: 1px solid var(--border); }
+    .p2-zone { background: rgba(31, 111, 235, 0.12); }
 
-    .p1-zone { background: rgba(35, 134, 54, 0.15); border-right: 1px solid #30363d; }
-    .p2-zone { background: rgba(31, 111, 235, 0.15); }
+    .pp-score { font-size: 5.5rem; font-weight: 900; line-height: 1; }
+    .p1-zone .pp-score { color: var(--green-bright); }
+    .p2-zone .pp-score { color: var(--accent); }
 
-    .player-name {
-      font-size: 1.3rem;
-      font-weight: 600;
-      color: #8b949e;
-    }
-
-    .score-display {
-      font-size: 6rem;
-      font-weight: 800;
-      line-height: 1;
-    }
-
-    .p1-zone .score-display { color: #3fb950; }
-    .p2-zone .score-display { color: #58a6ff; }
-
-    .serve-badge {
-      font-size: 0.9rem;
-      padding: 6px 12px;
+    .serve-tag {
+      font-size: 0.8rem;
+      padding: 5px 12px;
       border-radius: 20px;
-      background: var(--accent-yellow);
+      background: var(--yellow);
       color: #000;
-      font-weight: 700;
+      font-weight: 800;
       visibility: hidden;
     }
+    .serve-tag.active { visibility: visible; }
 
-    .serve-badge.active {
-      visibility: visible;
-    }
-
-    .sets-won {
-      font-size: 1rem;
-      color: #8b949e;
-    }
-
-    .controls {
+    /* SMART 10 TRIVIA INTERFACE */
+    .smart10-container { display: flex; flex-direction: column; gap: 12px; flex: 1; }
+    .smart10-header {
       background: var(--card-bg);
-      padding: 12px 16px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px;
+      text-align: center;
+    }
+
+    .box-grid {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 6px;
+      margin-top: 10px;
+    }
+
+    .smart-box {
+      background: #21262d;
+      border: 1px solid var(--border);
+      padding: 10px 0;
+      border-radius: 6px;
+      font-weight: 700;
+      font-size: 0.9rem;
+      cursor: pointer;
+    }
+
+    .smart-box.used { background: var(--red); color: white; text-decoration: line-through; }
+
+    /* MULTIPLAYER / BOARD GAME LIST */
+    .players-list { display: flex; flex-direction: column; gap: 8px; flex: 1; overflow-y: auto; }
+    .player-row {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 14px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .p-name { font-weight: 700; font-size: 1rem; }
+    .p-score { font-size: 1.6rem; font-weight: 800; color: var(--accent); }
+
+    .btn-group { display: flex; gap: 4px; }
+    .sm-btn {
+      background: #21262d;
+      color: var(--text);
+      border: 1px solid var(--border);
+      padding: 6px 10px;
+      border-radius: 6px;
+      font-weight: 700;
+      font-size: 0.85rem;
+      cursor: pointer;
+    }
+    .sm-btn:active { background: #30363d; }
+    .sm-btn.green { background: var(--green); color: white; }
+    .sm-btn.red { background: var(--red); color: white; }
+    .sm-btn.yellow { background: var(--yellow); color: black; }
+
+    /* LOG & STATS */
+    .log-box {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px;
+      max-height: 150px;
+      overflow-y: auto;
+      font-family: monospace;
+      font-size: 0.8rem;
+      color: var(--text-sub);
+    }
+
+    /* CONTROLS BAR */
+    .controls-bar {
+      background: var(--card-bg);
+      padding: 10px 16px;
       display: flex;
       justify-content: space-around;
-      gap: 10px;
-      border-top: 1px solid #30363d;
+      gap: 8px;
+      border-top: 1px solid var(--border);
     }
 
-    .btn {
+    .ctrl-btn {
       flex: 1;
-      padding: 12px;
-      font-size: 0.95rem;
-      font-weight: 600;
-      border: none;
+      padding: 10px;
+      font-size: 0.85rem;
+      font-weight: 700;
       border-radius: 8px;
-      cursor: pointer;
-      color: white;
+      border: 1px solid var(--border);
       background: #21262d;
-      border: 1px solid #30363d;
+      color: white;
+      cursor: pointer;
     }
 
-    .btn:active {
-      background: #30363d;
-    }
-
-    .btn-danger {
-      background: #da3633;
-      border-color: #f85149;
-    }
-
+    /* OVERLAY & MODAL */
     .overlay {
       position: fixed;
-      top: 0; left: 0; right: 0; bottom: 0;
-      background: rgba(13, 17, 23, 0.92);
+      inset: 0;
+      background: rgba(13, 17, 23, 0.94);
       display: flex;
-      flex-direction: column;
       justify-content: center;
       align-items: center;
-      z-index: 100;
+      z-index: 300;
       opacity: 0;
       pointer-events: none;
-      transition: opacity 0.3s ease;
+      transition: opacity 0.2s;
     }
+    .overlay.show { opacity: 1; pointer-events: auto; }
 
-    .overlay.show {
-      opacity: 1;
-      pointer-events: auto;
-    }
-
-    .win-card {
-      text-align: center;
-      padding: 30px;
+    .dialog-box {
       background: var(--card-bg);
+      border: 1px solid var(--border);
       border-radius: 16px;
-      border: 1px solid #30363d;
-      max-width: 80%;
-    }
-
-    .win-title {
-      font-size: 2rem;
-      color: var(--accent-yellow);
-      margin-bottom: 10px;
-    }
-
-    .win-subtitle {
-      font-size: 1.2rem;
-      margin-bottom: 20px;
+      padding: 24px;
+      text-align: center;
+      width: 85%;
+      max-width: 320px;
     }
   </style>
 </head>
 <body>
 
+  <!-- HEADER -->
   <header>
-    <h1>Mina Score</h1>
-    <select id="presetSelect" class="preset-select" onchange="changePreset()">
-      <option value="11">Ping Pong (11 pts)</option>
-      <option value="21">Classic (21 pts)</option>
-      <option value="5">Short Game (5 pts)</option>
-    </select>
+    <div class="brand">MINA HUB PRO</div>
+    <div class="hdr-btns">
+      <button class="btn-icon" onclick="toggleTheme()">🌗</button>
+      <button class="btn-icon" onclick="showScreen('menu')">☰ Menu</button>
+    </div>
   </header>
 
-  <div class="match-info" id="statusText">First to 11 (Win by 2)</div>
+  <!-- 1. MAIN MENU SCREEN -->
+  <div id="screen-menu" class="view-screen active">
+    <h2 style="font-size: 1.1rem; margin-bottom: 4px;">Choose Game Mode</h2>
+    <p style="color: var(--text-sub); font-size: 0.8rem; margin-bottom: 12px;">Select a preset or launch a custom match counter.</p>
 
-  <div class="scoreboard">
-    <div class="player-zone p1-zone" onclick="addPoint(1)">
-      <div class="player-name">PLAYER 1</div>
-      <div class="sets-won" id="sets1">Sets: 0</div>
-      <div class="score-display" id="score1">0</div>
-      <div class="serve-badge" id="serve1">🏓 SERVE</div>
-    </div>
+    <div class="menu-grid">
+      <div class="game-card" onclick="startPingPong(11)">
+        <div class="icon">🏓</div>
+        <h3>Ping Pong 11</h3>
+        <p>Official 11pt, Win-by-2</p>
+      </div>
 
-    <div class="player-zone p2-zone" onclick="addPoint(2)">
-      <div class="player-name">PLAYER 2</div>
-      <div class="sets-won" id="sets2">Sets: 0</div>
-      <div class="score-display" id="score2">0</div>
-      <div class="serve-badge" id="serve2">🏓 SERVE</div>
+      <div class="game-card" onclick="startPingPong(21)">
+        <div class="icon">🏆</div>
+        <h3>Ping Pong 21</h3>
+        <p>Classic 21pt Rules</p>
+      </div>
+
+      <div class="game-card" onclick="startSmart10()">
+        <div class="icon">🧩</div>
+        <h3>Smart 10 Trivia</h3>
+        <p>Round, boxes & pass tracker</p>
+      </div>
+
+      <div class="game-card" onclick="startBoardGame()">
+        <div class="icon">🎲</div>
+        <h3>Board Game Hub</h3>
+        <p>2–8 Player Multi-Counter</p>
+      </div>
+
+      <div class="game-card" onclick="startDarts()">
+        <div class="icon">🎯</div>
+        <h3>Darts / Counter</h3>
+        <p>Countdown 301/501 mode</p>
+      </div>
+
+      <div class="game-card" onclick="startCustom()">
+        <div class="icon">⚙️</div>
+        <h3>Custom Match</h3>
+        <p>Configure custom rules</p>
+      </div>
     </div>
   </div>
 
-  <div class="controls">
-    <button class="btn" onclick="undo()">↩ Undo</button>
-    <button class="btn" onclick="resetGame()">🔄 Reset Set</button>
-    <button class="btn btn-danger" onclick="resetAll()">💥 Reset All</button>
+  <!-- 2. PING PONG SCREEN -->
+  <div id="screen-pp" class="view-screen" style="padding:0;">
+    <div style="text-align:center; padding:8px; background:var(--card-bg); font-size:0.8rem; color:var(--text-sub);" id="pp-status">First to 11</div>
+    <div class="scoreboard-pp">
+      <div class="pp-zone p1-zone" onclick="ppAddPoint(1)">
+        <div style="font-weight:700; color:var(--text-sub);" id="pp-name1">PLAYER 1</div>
+        <div style="font-size:0.85rem;" id="pp-sets1">Sets: 0</div>
+        <div class="pp-score" id="pp-score1">0</div>
+        <div class="serve-tag" id="pp-serve1">🏓 SERVE</div>
+      </div>
+      <div class="pp-zone p2-zone" onclick="ppAddPoint(2)">
+        <div style="font-weight:700; color:var(--text-sub);" id="pp-name2">PLAYER 2</div>
+        <div style="font-size:0.85rem;" id="pp-sets2">Sets: 0</div>
+        <div class="pp-score" id="pp-score2">0</div>
+        <div class="serve-tag" id="pp-serve2">🏓 SERVE</div>
+      </div>
+    </div>
+    <div class="controls-bar">
+      <button class="ctrl-btn" onclick="ppUndo()">↩ Undo</button>
+      <button class="ctrl-btn" onclick="ppResetSet()">🔄 Reset Game</button>
+    </div>
   </div>
 
+  <!-- 3. SMART 10 TRIVIA SCREEN -->
+  <div id="screen-smart10" class="view-screen">
+    <div class="smart10-container">
+      <div class="smart10-header">
+        <div style="font-size:0.8rem; color:var(--text-sub);">SMART 10 TRIVIA MASTER</div>
+        <div style="font-size:1.8rem; font-weight:800; color:var(--yellow);" id="smart10-round">Round 1</div>
+        
+        <div style="margin-top:8px;">Remaining Boxes:</div>
+        <div class="box-grid" id="smart10-boxes"></div>
+
+        <button class="sm-btn green" style="margin-top:12px; width:100%; padding:8px;" onclick="nextSmart10Round()">Next Round (Reset Boxes) ➔</button>
+      </div>
+
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <h3 style="font-size:0.95rem;">Players & Answers</h3>
+        <button class="sm-btn" onclick="addSmart10Player()">+ Add Player</button>
+      </div>
+
+      <div class="players-list" id="smart10-players"></div>
+    </div>
+  </div>
+
+  <!-- 4. MULTIPLAYER BOARD GAME SCREEN -->
+  <div id="screen-board" class="view-screen">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+      <h3 style="font-size:0.95rem;">Multiplayer Tracker</h3>
+      <button class="sm-btn" onclick="addBoardPlayer()">+ Add Player</button>
+    </div>
+    <div class="players-list" id="board-players"></div>
+    <div style="margin-top:12px;">
+      <h4 style="font-size:0.8rem; color:var(--text-sub); margin-bottom:4px;">Match History Log:</h4>
+      <div class="log-box" id="board-log">Ready.</div>
+    </div>
+  </div>
+
+  <!-- WIN OVERLAY -->
   <div class="overlay" id="winOverlay">
-    <div class="win-card">
-      <div class="win-title">🎉 WINNER! 🎉</div>
-      <div class="win-subtitle" id="winnerText">Player 1 wins the match!</div>
-      <button class="btn" style="background: var(--p1-color);" onclick="closeOverlay()">Next Game</button>
+    <div class="dialog-box">
+      <h2 style="color:var(--yellow); font-size:1.6rem;">🎉 WINNER! 🎉</h2>
+      <p id="winnerText" style="font-size:1rem; margin:14px 0;">Player 1 wins!</p>
+      <button class="sm-btn green" style="width:100%; padding:10px;" onclick="closeOverlay()">Continue Match</button>
     </div>
   </div>
 
   <script>
-    let targetScore = 11;
-    let serveInterval = 2;
-
-    let p1 = 0, p2 = 0;
-    let sets1 = 0, sets2 = 0;
-    let history = [];
-
+    // AUDIO ENGINE & VIBRATION
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-
-    function playBeep(freq = 600, duration = 0.08) {
+    function playSound(freq = 600, duration = 0.08) {
       if (audioCtx.state === 'suspended') audioCtx.resume();
       const osc = audioCtx.createOscillator();
       const gain = audioCtx.createGain();
       osc.frequency.value = freq;
-      gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+      gain.gain.setValueAtTime(0.08, audioCtx.currentTime);
       osc.connect(gain);
       gain.connect(audioCtx.destination);
       osc.start();
       osc.stop(audioCtx.currentTime + duration);
     }
 
-    function updateDisplay() {
-      document.getElementById('score1').innerText = p1;
-      document.getElementById('score2').innerText = p2;
-      document.getElementById('sets1').innerText = `Sets: ${sets1}`;
-      document.getElementById('sets2').innerText = `Sets: ${sets2}`;
+    function triggerVibrate() { if (navigator.vibrate) navigator.vibrate(35); }
 
-      let totalPoints = p1 + p2;
-      let isDeuce = (p1 >= targetScore - 1) && (p2 >= targetScore - 1);
-
-      // Serve rotation: switches every 1 point in deuce, otherwise uses preset interval
-      let currentInterval = isDeuce ? 1 : serveInterval;
-      let isP1Serve = Math.floor(totalPoints / currentInterval) % 2 === 0;
-
-      document.getElementById('serve1').classList.toggle('active', isP1Serve);
-      document.getElementById('serve2').classList.toggle('active', !isP1Serve);
-
-      let statusMsg = `First to ${targetScore} (Win by 2)`;
-      if (isDeuce) statusMsg = "🔥 DEUCE! Switch serve every point";
-      document.getElementById('statusText').innerText = statusMsg;
+    function toggleTheme() {
+      let isLight = document.body.getAttribute('data-theme') === 'light';
+      document.body.setAttribute('data-theme', isLight ? 'dark' : 'light');
     }
 
-    function addPoint(player) {
-      history.push({ p1, p2, sets1, sets2 });
-
-      if (player === 1) p1++;
-      else p2++;
-
-      if (navigator.vibrate) navigator.vibrate(40);
-      playBeep(player === 1 ? 700 : 500);
-
-      checkWinCondition(player);
-      updateDisplay();
+    // NAVIGATION
+    function showScreen(id) {
+      document.querySelectorAll('.view-screen').forEach(s => s.classList.remove('active'));
+      document.getElementById('screen-' + id).classList.add('active');
     }
 
-    function checkWinCondition(lastScorer) {
-      if ((p1 >= targetScore || p2 >= targetScore) && Math.abs(p1 - p2) >= 2) {
-        let winner = p1 > p2 ? "Player 1" : "Player 2";
-        if (p1 > p2) sets1++; else sets2++;
+    // PING PONG LOGIC
+    let ppTarget = 11, ppServeInterval = 2;
+    let pp1 = 0, pp2 = 0, ppSets1 = 0, ppSets2 = 0;
+    let ppHistory = [];
 
-        document.getElementById('winnerText').innerText = `${winner} wins this game!`;
-        document.getElementById('winOverlay').classList.add('show');
+    function startPingPong(target) {
+      ppTarget = target;
+      ppServeInterval = (target === 21) ? 5 : 2;
+      pp1 = 0; pp2 = 0; ppSets1 = 0; ppSets2 = 0; ppHistory = [];
+      updatePPDisplay();
+      showScreen('pp');
+    }
 
-        playBeep(900, 0.3);
-        if (window.confetti) {
-          confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
-        }
+    function updatePPDisplay() {
+      document.getElementById('pp-score1').innerText = pp1;
+      document.getElementById('pp-score2').innerText = pp2;
+      document.getElementById('pp-sets1').innerText = `Sets: ${ppSets1}`;
+      document.getElementById('pp-sets2').innerText = `Sets: ${ppSets2}`;
+
+      let total = pp1 + pp2;
+      let isDeuce = (pp1 >= ppTarget - 1) && (pp2 >= ppTarget - 1);
+      let interval = isDeuce ? 1 : ppServeInterval;
+      let isP1Serve = Math.floor(total / interval) % 2 === 0;
+
+      document.getElementById('pp-serve1').classList.toggle('active', isP1Serve);
+      document.getElementById('pp-serve2').classList.toggle('active', !isP1Serve);
+      document.getElementById('pp-status').innerText = isDeuce ? "🔥 DEUCE! Switch serve every point" : `First to ${ppTarget} (Win by 2)`;
+    }
+
+    function ppAddPoint(p) {
+      ppHistory.push({ pp1, pp2, ppSets1, ppSets2 });
+      if (p === 1) pp1++; else pp2++;
+      triggerVibrate(); playSound(p === 1 ? 750 : 550);
+
+      if ((pp1 >= ppTarget || pp2 >= ppTarget) && Math.abs(pp1 - pp2) >= 2) {
+        let winner = pp1 > pp2 ? "Player 1" : "Player 2";
+        if (pp1 > pp2) ppSets1++; else ppSets2++;
+        showWinner(`${winner} wins the game!`);
+      }
+      updatePPDisplay();
+    }
+
+    function ppUndo() {
+      if (ppHistory.length) {
+        let s = ppHistory.pop();
+        pp1 = s.pp1; pp2 = s.pp2; ppSets1 = s.ppSets1; ppSets2 = s.ppSets2;
+        updatePPDisplay();
       }
     }
 
-    function undo() {
-      if (history.length > 0) {
-        let lastState = history.pop();
-        p1 = lastState.p1;
-        p2 = lastState.p2;
-        sets1 = lastState.sets1;
-        sets2 = lastState.sets2;
-        updateDisplay();
-      }
+    function ppResetSet() { pp1 = 0; pp2 = 0; updatePPDisplay(); }
+
+    // SMART 10 TRIVIA ENGINE
+    let smart10RoundNum = 1;
+    let smart10Boxes = Array(10).fill(false);
+    let smart10Players = [
+      { name: "Player 1", score: 0 },
+      { name: "Player 2", score: 0 }
+    ];
+
+    function startSmart10() {
+      smart10RoundNum = 1;
+      smart10Boxes.fill(false);
+      renderSmart10();
+      showScreen('smart10');
+    }
+
+    function renderSmart10() {
+      document.getElementById('smart10-round').innerText = `Round ${smart10RoundNum}`;
+      
+      const boxGrid = document.getElementById('smart10-boxes');
+      boxGrid.innerHTML = '';
+      smart10Boxes.forEach((used, i) => {
+        boxGrid.innerHTML += `<div class="smart-box ${used ? 'used' : ''}" onclick="toggleSmartBox(${i})">${i + 1}</div>`;
+      });
+
+      const list = document.getElementById('smart10-players');
+      list.innerHTML = '';
+      smart10Players.forEach((p, idx) => {
+        list.innerHTML += `
+          <div class="player-row">
+            <div><span class="p-name">${p.name}</span></div>
+            <div style="display:flex; align-items:center; gap:8px;">
+              <span class="p-score">${p.score}</span>
+              <div class="btn-group">
+                <button class="sm-btn green" onclick="modSmart10(${idx}, 1)">+1</button>
+                <button class="sm-btn yellow" onclick="modSmart10(${idx}, 2)">+2</button>
+                <button class="sm-btn red" onclick="modSmart10(${idx}, -1)">-1</button>
+              </div>
+            </div>
+          </div>
+        `;
+      });
+    }
+
+    function toggleSmartBox(i) {
+      smart10Boxes[i] = !smart10Boxes[i];
+      triggerVibrate(); playSound(500);
+      renderSmart10();
+    }
+
+    function modSmart10(idx, delta) {
+      smart10Players[idx].score = Math.max(0, smart10Players[idx].score + delta);
+      triggerVibrate(); playSound(650);
+      renderSmart10();
+    }
+
+    function addSmart10Player() {
+      let name = prompt("Player Name:", `Player ${smart10Players.length + 1}`);
+      if (name) { smart10Players.push({ name, score: 0 }); renderSmart10(); }
+    }
+
+    function nextSmart10Round() {
+      smart10RoundNum++;
+      smart10Boxes.fill(false);
+      renderSmart10();
+    }
+
+    // MULTIPLAYER BOARD GAME ENGINE
+    let boardPlayers = [
+      { name: "Player 1", score: 0 },
+      { name: "Player 2", score: 0 }
+    ];
+
+    function startBoardGame() { renderBoard(); showScreen('board'); }
+
+    function renderBoard() {
+      const list = document.getElementById('board-players');
+      list.innerHTML = '';
+      boardPlayers.forEach((p, idx) => {
+        list.innerHTML += `
+          <div class="player-row">
+            <div><span class="p-name">${p.name}</span></div>
+            <div style="display:flex; align-items:center; gap:8px;">
+              <span class="p-score">${p.score}</span>
+              <div class="btn-group">
+                <button class="sm-btn green" onclick="modBoard(${idx}, 1)">+1</button>
+                <button class="sm-btn green" onclick="modBoard(${idx}, 5)">+5</button>
+                <button class="sm-btn red" onclick="modBoard(${idx}, -1)">-1</button>
+              </div>
+            </div>
+          </div>
+        `;
+      });
+    }
+
+    function modBoard(idx, delta) {
+      boardPlayers[idx].score += delta;
+      logBoard(`${boardPlayers[idx].name}: ${delta > 0 ? '+' : ''}${delta} (Total: ${boardPlayers[idx].score})`);
+      triggerVibrate(); playSound(600);
+      renderBoard();
+    }
+
+    function addBoardPlayer() {
+      let name = prompt("Player Name:", `Player ${boardPlayers.length + 1}`);
+      if (name) { boardPlayers.push({ name, score: 0 }); renderBoard(); }
+    }
+
+    function logBoard(msg) {
+      const box = document.getElementById('board-log');
+      box.innerText = `[${new Date().toLocaleTimeString()}] ${msg}\n` + box.innerText;
+    }
+
+    function startDarts() {
+      boardPlayers = [ { name: "Player 1", score: 301 }, { name: "Player 2", score: 301 } ];
+      startBoardGame();
+    }
+
+    function startCustom() {
+      let pts = prompt("Target winning score:", "10");
+      if (pts) startPingPong(parseInt(pts) || 10);
+    }
+
+    // WINNER OVERLAY
+    function showWinner(text) {
+      document.getElementById('winnerText').innerText = text;
+      document.getElementById('winOverlay').classList.add('show');
+      playSound(900, 0.3);
+      if (window.confetti) confetti({ particleCount: 120, spread: 80, origin: { y: 0.6 } });
     }
 
     function closeOverlay() {
       document.getElementById('winOverlay').classList.remove('show');
-      p1 = 0; p2 = 0;
-      updateDisplay();
+      pp1 = 0; pp2 = 0; updatePPDisplay();
     }
-
-    function resetGame() {
-      p1 = 0; p2 = 0;
-      updateDisplay();
-    }
-
-    function resetAll() {
-      p1 = 0; p2 = 0;
-      sets1 = 0; sets2 = 0;
-      history = [];
-      updateDisplay();
-    }
-
-    function changePreset() {
-      let val = parseInt(document.getElementById('presetSelect').value);
-      targetScore = val;
-      serveInterval = (val === 21) ? 5 : 2;
-      resetGame();
-    }
-
-    updateDisplay();
   </script>
 </body>
 </html>
