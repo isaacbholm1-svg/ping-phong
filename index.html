@@ -298,7 +298,7 @@ header{box-shadow:0 2px 16px rgba(0,0,0,.25)}
   <div class="autoctl ttonly" id="autoBall"><span>Ball:</span><button class="sm-btn" data-b="auto">Auto</button><button class="sm-btn" data-b="white">⚪ White</button><button class="sm-btn" data-b="orange">🟠 Orange</button><button class="sm-btn" data-b="custom">🎯 Learn</button></div>
   <div class="autohelp" id="autoStat" style="padding:2px 12px"></div>
   <div class="autoctl">
-    <button class="sm-btn ttonly" id="micBtn" onclick="toggleMic()">🎤 Mic: off</button><button class="sm-btn ttonly" onclick="startTeach()">🎓 Teach ball</button><button class="sm-btn ttonly" onclick="startCal()">📐 Calibrate</button><button class="sm-btn ttonly" id="stayBtn" onclick="toggleStay()">⏱ Stay rule</button><button class="sm-btn ttonly" onclick="autoSwap()">⇄ Swap sides</button>
+    <button class="sm-btn ttonly" id="micBtn" onclick="toggleMic()">🎤 Mic: off</button><button class="sm-btn ttonly" onclick="startTeach()">🎓 Teach ball</button><button class="sm-btn ttonly" onclick="startWiz()">📐 Calibrate</button><button class="sm-btn ttonly" id="stayBtn" onclick="toggleStay()">⏱ Stay rule</button><button class="sm-btn ttonly" onclick="autoSwap()">⇄ Swap sides</button>
     <button class="sm-btn" onclick="autoCam()">🔄 Camera</button><button class="sm-btn cueonly" id="pkBtn" onclick="pkEdit()">🕳 Move holes</button><label class="cueonly">Hole size <input type="range" id="pkSize" min="50" max="220" value="100" oninput="AU.pks = this.value / 100"></label>
     <button class="sm-btn cueonly red" onclick="cueFoul()">⚠️ Foul</button><button class="sm-btn cueonly" onclick="cueTurn()">⇄ Turn</button><button class="sm-btn cueonly" onclick="cueReset()">📐 Redo setup</button>
     <label>Sensitivity <input type="range" id="autoSens" min="1" max="10" value="5" oninput="AU.sens=+this.value"></label>
@@ -862,7 +862,7 @@ $('peopleBody').addEventListener('click', function(e){
 });
 
 /* ---------- Auto-Score (BETA): camera ball tracking ---------- */
-var AUTOMODE = '', AU = {stay:load('astay', true), cal:null, cs:0, calPts:[], facing:'environment', mode:'tt', cloth:load('acloth', null), tl:null, br:null, balls:[], turn:0, moving:false, still:0, cnt:0, shotPot:false, foul:false, pendN:1, on:false, stream:null, raf:0, prev:null, W:96, H:72, net:.5, swap:false, sens:5, trk:[], last:-1, lastT:0, cool:0, pend:null, pendT:0, cv:null, cx:null, bx:0, by:0, bt:-9999, gen:0, ball:load('aball', 'auto'), lc:load('alc', [255, 140, 30]), lcr:load('alcr', 5000), tch:null, mic:load('amic', false), nclick:0, clicks:[], an:null, pick:false, fps:0, fc:0, ft:0, mask:null, seen:null, stack:null};
+var AUTOMODE = '', AU = {stay:load('astay', true), cal:null, cs:0, calPts:[], facing:'environment', mode:'tt', cloth:load('acloth', null), tl:null, br:null, balls:[], turn:0, moving:false, still:0, cnt:0, shotPot:false, foul:false, pendN:1, on:false, stream:null, raf:0, prev:null, W:96, H:72, net:.5, swap:false, sens:5, trk:[], last:-1, lastT:0, cool:0, pend:null, pendT:0, cv:null, cx:null, bx:0, by:0, bt:-9999, gen:0, ball:load('aball', 'auto'), lc:load('alc', [255, 140, 30]), lcr:load('alcr', 5000), tch:null, ta:load('ata', 0), wz:-1, netPts:null, floorY:null, bg:null, bgt:null, bgN:0, shake:0, rebg:false, mic:load('amic', false), nclick:0, clicks:[], an:null, pick:false, fps:0, fc:0, ft:0, mask:null, seen:null, stack:null};
 function toPlayer(side){ return AU.swap ? 1 - side : side; }
 function syncBall(){ document.querySelectorAll('#autoBall [data-b]').forEach(function(b){ b.classList.toggle('accent', b.dataset.b === AU.ball || (b.dataset.b === 'custom' && AU.pick)); }); }
 $('autoBall').addEventListener('click', function(e){
@@ -881,7 +881,7 @@ function openAuto(mode){
     AU.cq = []; AU.roi = null; AU.pkn = null; AU.pks = 1; AU.pedit = false; $('pkSize').value = 100; $('pkBtn').textContent = '🕳 Move holes'; AU.pt = 0; AU.hand = 0; AU.ba = 12; AU.sn = {ph:'red', reds:15, ti:0}; AU.grp = [null, null]; AU.gp = {solid:0, stripe:0}; AU.balls = []; AU.turn = 0; AU.moving = false; AU.still = 0; AU.cnt = 0; AU.shotPot = AU.foul = false;
     AU.cs = 0; AU.cal = null; AU.calPts = []; $('stayBtn').textContent = '⏱ Stay rule: ' + (AU.stay ? 'on' : 'off'); AU.help = AU.help || $('autoHelp').textContent; $('autoOv').dataset.mode = AU.mode;
     $('autoHelp').textContent = AU.mode === 'cue' ? 'Hold your phone above the table (or high at an angle) so the whole cloth is in view. Tap the 4 corners of the playing surface (top-left, top-right, bottom-right, bottom-left). A ball that vanishes into a pocket scores for the player whose turn it is. The turn passes when a shot pots nothing. Use ⇄ Turn to fix it.' : AU.help;
-    syncBall(); $('autoOv').classList.add('show'); autoNext(); beep(800, .1); if (AU.mode === 'tt'){ startCal(); $('micBtn').textContent = '🎤 Mic: ' + (AU.mic ? 'on' : 'off'); if (AU.mic) micOn(); }
+    syncBall(); $('autoOv').classList.add('show'); autoNext(); beep(800, .1); if (AU.mode === 'tt'){ startWiz(); $('micBtn').textContent = '🎤 Mic: ' + (AU.mic ? 'on' : 'off'); if (AU.mic) micOn(); }
   }).catch(function(){ toast('Allow camera access to use Auto-Score'); });
 }
 function closeAuto(){
@@ -891,6 +891,7 @@ function closeAuto(){
 function autoNet(e){
   var r = $('autoStage').getBoundingClientRect();
   if (AU.mode === 'cue'){ cueTap(e, r); return; }
+  if (AU.wz >= 1 && AU.wz <= 7){ wizTap(e, r); return; }
   if (AU.tch && !AU.tch.p){ AU.tch.p = {x:(e.clientX - r.left) / r.width * AU.W, y:(e.clientY - r.top) / r.height * AU.H}; AU.tch.t0 = performance.now(); toast('Now move the ball around for 6 seconds'); beep(800, .08); return; }
   if (AU.cs){ calTap(e, r); return; }
   if (AU.pick){
@@ -915,7 +916,8 @@ function detectBounce(t){
   var k = AU.trk, n = k.length; if (n < 5 || AU.tch || t < AU.cool || AU.pend !== null || D.over || $('winOverlay').classList.contains('show')) return;
   var s = [], i; for (i = n - 4; i < n; i++) s.push(k[i].y - k[i - 1].y);
   if ((s[0] + s[1]) / 2 > .9 && (s[2] + s[3]) / 2 < -.9 && k[n - 1].t - k[n - 5].t < 260){
-    var m = k[n - 3]; if (!onTable(m) || t - AU.bt < 150) return;
+    var m = k[n - 3]; if (AU.floorY != null && !onTable(m) && m.y >= AU.floorY * AU.H - 4 && AU.last > -1 && AU.pend === null){ var fs = AU.last; AU.last = -1; AU.cool = t + 1500; toast('⬇️ Ball hit the floor'); queuePoint(toPlayer(1 - fs)); return; }
+    if (!onTable(m) || t - AU.bt < 150) return;
     if (AU.an && !heard(t)) return;   /* mic is on: a real table bounce must also make a click */
     var side = sideOf(m); AU.bx = m.x; AU.by = m.y; AU.bt = t; beep(1200, .03);
     if (side === AU.last){ AU.last = -1; AU.cool = t + 1500; queuePoint(toPlayer(1 - side)); }
@@ -939,11 +941,14 @@ function autoLoop(){
   AU.fc++; if (t - AU.ft > 500){ AU.fps = Math.round(AU.fc * 1000 / (t - AU.ft)); AU.fc = 0; AU.ft = t; }
   AU.cx.drawImage(v, 0, 0, W, H); var d = AU.cx.getImageData(0, 0, W, H).data, pv = AU.prev;
   if (!pv){ pv = AU.prev = new Uint8Array(N); for (i = 0; i < N; i++) pv[i] = (d[i * 4] + d[i * 4 + 1] + d[i * 4 + 2]) / 3; return; }
-  var thr = 60 - AU.sens * 4, top = Math.floor(H * .25), mask = AU.mask, seen = AU.seen, stack = AU.stack; mask.fill(0); seen.fill(0);
+  if (AU.wz === 0 || AU.rebg){ bgLearn(d, N); drawAuto(null, t); return; }
+  var thr = 60 - AU.sens * 4, top = Math.floor(H * .25), mask = AU.mask, seen = AU.seen, stack = AU.stack, fgc = 0; mask.fill(0); seen.fill(0);
   for (i = top * W; i < N; i++){
     var j = i * 4, r = d[j], g = d[j + 1], b = d[j + 2], l = (r + g + b) / 3, df = l - pv[i]; pv[i] = l;
-    if ((df > thr || df < -thr) && (AU.tch || isBall(r, g, b, l))) mask[i] = 1;
+    var o3 = i * 3, fg = AU.bg ? (Math.abs(r - AU.bg[o3]) > AU.bgt[i] || Math.abs(g - AU.bg[o3 + 1]) > AU.bgt[i] || Math.abs(b - AU.bg[o3 + 2]) > AU.bgt[i]) : (df > thr || df < -thr);
+    if (fg){ fgc++; if (AU.tch || isBall(r, g, b, l)) mask[i] = 1; } else if (AU.bg){ AU.bg[o3] += (r - AU.bg[o3]) * .01; AU.bg[o3 + 1] += (g - AU.bg[o3 + 1]) * .01; AU.bg[o3 + 2] += (b - AU.bg[o3 + 2]) * .01; }
   }
+  if (AU.bg){ if (fgc > N * .35){ if (++AU.shake > 45){ toast('Camera moved or lights changed – relearning the background'); AU.bg = null; AU.rebg = true; AU.shake = 0; } } else AU.shake = 0; }
   var nT = AU.trk.length, L = AU.trk[nT - 1], pred = null, best = null, bs = 1e9;
   if (nT >= 2){ var p0 = AU.trk[nT - 2], kk = Math.min(2, Math.max(.5, (t - L.t) / Math.max(1, L.t - p0.t))); pred = {x:L.x + (L.x - p0.x) * kk, y:L.y + (L.y - p0.y) * kk}; } else if (L) pred = L; if (AU.tch && AU.tch.p) pred = AU.tch.p;
   for (i = top * W; i < N; i++){
@@ -957,14 +962,14 @@ function autoLoop(){
       if (y > 0 && mask[q - W] && !seen[q - W]){ seen[q - W] = 1; stack[sp++] = q - W; }
       if (y < H - 1 && mask[q + W] && !seen[q + W]){ seen[q + W] = 1; stack[sp++] = q + W; }
     }
-    var bw = x1 - x0 + 1, bh = y1 - y0 + 1; if (a < 3 || a > 40 || bw > 8 || bh > 8 || bw / bh > 1.8 || bh / bw > 1.8 || a / (bw * bh) < .55) continue;
+    var bw = x1 - x0 + 1, bh = y1 - y0 + 1; if (a < (AU.ta ? AU.ta * .4 : 3) || a > (AU.ta ? AU.ta * 2.4 : 40) || bw > 8 || bh > 8 || bw / bh > 1.8 || bh / bw > 1.8 || a / (bw * bh) < .55) continue;
     var cx = sx / a, cy = sy / a, sc = pred ? Math.hypot(cx - pred.x, cy - pred.y) : -a;
     if (pred && sc > 18) continue;
-    if (sc < bs){ bs = sc; best = {x:cx, y:cy, c:[cr / a, cg / a, cb / a]}; }
+    if (sc < bs){ bs = sc; best = {x:cx, y:cy, a:a, c:[cr / a, cg / a, cb / a]}; }
   }
   if (best){
     if (L && t - L.t > 150) AU.trk = [];
-    AU.trk.push({x:best.x, y:best.y, t:t}); if (AU.trk.length > 5) AU.trk.shift(); detectBounce(t); if (AU.last > -1 && sideOf(best) !== AU.last) AU.lastT = t;
+    AU.trk.push({x:best.x, y:best.y, t:t}); if (AU.trk.length > 5) AU.trk.shift(); detectBounce(t); netCheck(best, t); if (AU.last > -1 && sideOf(best) !== AU.last) AU.lastT = t;
   } else if (L && t - L.t > 150) AU.trk = [];
   if (AU.last > -1 && t - AU.lastT > (AU.stay ? 1800 : 2500)){
     if (AU.stay && AU.pend === null && t > AU.cool && !D.over){ var sd = AU.last; AU.last = -1; AU.cool = t + 1500; queuePoint(toPlayer(1 - sd)); } else AU.last = -1;
@@ -974,6 +979,8 @@ function autoLoop(){
 function drawAuto(b, t){
   var c = $('autoCv'), x = c.getContext('2d'), sx = c.width / AU.W, sy = c.height / AU.H;
   x.clearRect(0, 0, c.width, c.height); x.strokeStyle = '#fff'; x.lineWidth = 1; x.setLineDash([6, 6]); x.beginPath(); var nl = netLine(); x.moveTo(nl[0] * c.width, nl[1] * c.height); x.lineTo(nl[2] * c.width, nl[3] * c.height); x.stroke(); x.setLineDash([]);
+  if (AU.netPts){ x.strokeStyle = '#f0f'; x.lineWidth = 2; x.beginPath(); AU.netPts.forEach(function(q, i){ if (i) x.lineTo(q[0] * c.width, q[1] * c.height); else x.moveTo(q[0] * c.width, q[1] * c.height); }); x.stroke(); }
+  if (AU.floorY != null){ x.strokeStyle = '#fa0'; x.lineWidth = 2; x.setLineDash([4, 4]); x.beginPath(); x.moveTo(0, AU.floorY * c.height); x.lineTo(c.width, AU.floorY * c.height); x.stroke(); x.setLineDash([]); }
   var cp = AU.cal || AU.calPts;
   if (cp.length){ x.strokeStyle = '#0af'; x.lineWidth = 2; x.beginPath(); cp.forEach(function(q, i){ if (i) x.lineTo(q[0] * c.width, q[1] * c.height); else x.moveTo(q[0] * c.width, q[1] * c.height); }); if (AU.cal) x.closePath(); x.stroke(); x.fillStyle = '#0af'; cp.forEach(function(q){ x.beginPath(); x.arc(q[0] * c.width, q[1] * c.height, 5, 0, 7); x.fill(); }); }
   x.fillStyle = 'rgba(255,200,0,.7)'; AU.trk.forEach(function(q){ x.fillRect(q.x * sx - 2, q.y * sy - 2, 4, 4); });
@@ -981,7 +988,7 @@ function drawAuto(b, t){
   if (t - AU.bt < 700){ x.fillStyle = '#f33'; x.beginPath(); x.arc(AU.bx * sx, AU.by * sy, 10, 0, 7); x.fill(); }
   var l = toPlayer(0), rr = toPlayer(1);
   $('autoScore').textContent = '◀ ' + dn(l) + ' ' + D.s[l] + '  –  ' + D.s[rr] + ' ' + dn(rr) + ' ▶';
-  $('autoStat').textContent = AU.fps + ' fps · ' + (AU.trk.length ? 'tracking ball ✓' : 'searching…') + ' · ' + (AU.tch ? (AU.tch.p ? 'teaching… ' + Math.max(0, 6 - Math.round((performance.now() - AU.tch.t0) / 1000)) + 's · ' + AU.tch.s.length + ' samples' : 'tap the ball') : AU.cs ? CALMSG[AU.cs - 1] : AU.pick ? 'tap the ball' : AU.ball) + (AU.an ? ' · 🎤 ' + (AU.nclick || 0) + ' hits' : '');
+  $('autoStat').textContent = AU.fps + ' fps · ' + (AU.trk.length ? 'tracking ball ✓' : 'searching…') + ' · ' + (AU.wz >= 0 && AU.wz < 8 ? WIZ[AU.wz] : AU.tch ? (AU.tch.p ? 'teaching… ' + Math.max(0, 6 - Math.round((performance.now() - AU.tch.t0) / 1000)) + 's · ' + AU.tch.s.length + ' samples' : 'tap the ball') : AU.cs ? CALMSG[AU.cs - 1] : AU.pick ? 'tap the ball' : AU.ball) + (AU.an ? ' · 🎤 ' + (AU.nclick || 0) + ' hits' : '');
 }
 
 var CALMSG = ['Tap the FAR-LEFT corner of the table', 'Tap the FAR-RIGHT corner', 'Tap the NEAR-RIGHT corner', 'Tap the NEAR-LEFT corner'];
@@ -1003,19 +1010,60 @@ function micPoll(t){
   AU.avg = AU.avg * .97 + pk * .03;
 }
 function heard(t){ return AU.clicks.some(function(c){ return t - c < 350 && t - c > -100; }); }
-function startTeach(){ AU.tch = {p:null, s:[], t0:0}; AU.pick = false; toast('Hold the ball by your fingertips, tap it, then move it around'); beep(700, .06); }
+/* ---- full calibration wizard: background, table, net, floor, ball ---- */
+var WIZ = ['STEP 1/9 – Clear the table and step out of the picture. Learning the background…', 'STEP 2/9 – Tap the FAR-LEFT corner of the table', 'STEP 3/9 – Tap the FAR-RIGHT corner', 'STEP 4/9 – Tap the NEAR-RIGHT corner', 'STEP 5/9 – Tap the NEAR-LEFT corner', 'STEP 6/9 – Tap the TOP of the net at the LEFT post', 'STEP 7/9 – Tap the TOP of the net at the RIGHT post', 'STEP 8/9 – Tap the FLOOR just below the table', 'STEP 9/9 – Teach the ball'];
+function startWiz(){
+  AU.wz = 0; AU.cal = null; AU.calPts = []; AU.netPts = null; AU.floorY = null; AU.bg = null; AU.bs = null; AU.bgN = 0; AU.cs = 0; AU.tch = null; AU.last = -1; AU.ps = undefined;
+  toast('Calibration: ' + WIZ[0]); beep(700, .06);
+}
+function wizNext(){
+  AU.wz++; if (AU.wz >= 9){ AU.wz = -1; toast('✅ Calibration complete – ready to play'); buzz([40, 30, 40]); beep(950, .15); return; }
+  if (AU.wz === 8) startTeach(); else toast(WIZ[AU.wz]);
+}
+function wizTap(e, r){
+  var fx = (e.clientX - r.left) / r.width, fy = (e.clientY - r.top) / r.height, st = AU.wz;
+  if (st >= 1 && st <= 4){ AU.calPts.push([fx, fy]); if (st === 4){ AU.cal = AU.calPts; AU.calPts = []; } }
+  else if (st === 5) AU.netPts = [[fx, fy]]; else if (st === 6) AU.netPts.push([fx, fy]); else if (st === 7) AU.floorY = fy;
+  beep(800, .06); wizNext();
+}
+/* learn what the scene looks like WITHOUT the ball: per-pixel average and how much each pixel normally flickers */
+function bgLearn(d, N){
+  if (!AU.bs){ AU.bs = new Float32Array(N * 3); AU.bq = new Float32Array(N * 3); AU.bgN = 0; }
+  var i, p, c, v;
+  for (i = 0; i < N * 3; i++){ p = (i / 3) | 0; c = i % 3; v = d[p * 4 + c]; AU.bs[i] += v; AU.bq[i] += v * v; }
+  if (++AU.bgN < 45) return;
+  var n = AU.bgN, bg = new Float32Array(N * 3), bt = new Uint8Array(N), lum = 0, q, c2;
+  for (q = 0; q < N; q++){
+    var mx = 0; for (c2 = 0; c2 < 3; c2++){ var m = AU.bs[q * 3 + c2] / n, sd = Math.sqrt(Math.max(0, AU.bq[q * 3 + c2] / n - m * m)); bg[q * 3 + c2] = m; if (sd > mx) mx = sd; lum += m / 3; }
+    bt[q] = Math.min(80, Math.max(24, 3.5 * mx + 16));
+  }
+  AU.bg = bg; AU.bgt = bt; AU.bs = AU.bq = null; AU.rebg = false; lum /= N;
+  toast(lum < 45 ? '⚠️ Too dark – add light for better tracking' : '✅ Background learned');
+  if (AU.wz === 0) wizNext();
+}
+/* ball crossing the net: over the top = fine, below the net top = it hit the net, ignore the rally */
+function netCheck(b, t){
+  if (!AU.netPts || AU.netPts.length < 2 || AU.pend !== null){ AU.ps = sideOf(b); return; }
+  var sd = sideOf(b);
+  if (AU.ps !== undefined && AU.ps !== sd){
+    var a = AU.netPts[0], c = AU.netPts[1], x1 = a[0] * AU.W, y1 = a[1] * AU.H, x2 = c[0] * AU.W, y2 = c[1] * AU.H;
+    if (x2 !== x1 && b.x >= Math.min(x1, x2) && b.x <= Math.max(x1, x2)){ var ny = y1 + (y2 - y1) * (b.x - x1) / (x2 - x1); if (b.y > ny + 2){ toast('🥅 Net'); AU.last = -1; AU.cool = t + 1200; } }
+  }
+  AU.ps = sd;
+}
+function startTeach(){ AU.tch = {p:null, s:[], a:[], t0:0}; AU.pick = false; toast('Hold the ball by your fingertips, tap it, then move it around'); beep(700, .06); }
 function teachStep(b, t){
   var T = AU.tch; if (!T || !T.p) return;
-  if (b){ T.p = {x:b.x, y:b.y}; T.s.push(b.c); }
+  if (b){ T.p = {x:b.x, y:b.y}; T.s.push(b.c); T.a.push(b.a); }
   if (t - T.t0 > 6000) finishTeach();
 }
 function finishTeach(){
-  var S = AU.tch.s; AU.tch = null;
+  var S = AU.tch.s, TA = AU.tch.a.slice().sort(function(p, q){ return p - q; }); AU.tch = null;
   if (S.length < 15){ toast('Could not follow the ball – try again against a plainer background'); return; }
   var med = function(k){ var a = S.map(function(c){ return c[k]; }).sort(function(p, q){ return p - q; }); return a[a.length >> 1]; };
   var m = [med(0), med(1), med(2)], ds = S.map(function(c){ return Math.pow(c[0] - m[0], 2) + Math.pow(c[1] - m[1], 2) + Math.pow(c[2] - m[2], 2); }).sort(function(p, q){ return p - q; });
   AU.lc = m; AU.lcr = Math.max(1800, Math.min(9000, ds[Math.floor(ds.length * .9)] * 2.2)); AU.ball = 'custom';
-  save('alc', AU.lc); save('alcr', AU.lcr); save('aball', 'custom'); syncBall(); toast('🎓 Learned your ball (' + S.length + ' samples)'); buzz(40); beep(950, .15);
+  save('alc', AU.lc); save('alcr', AU.lcr); save('aball', 'custom'); if (TA.length){ AU.ta = TA[TA.length >> 1]; save('ata', AU.ta); } syncBall(); toast('🎓 Learned your ball (' + S.length + ' samples)'); buzz(40); beep(950, .15); if (AU.wz === 8) wizNext();
 }
 function startCal(){ AU.cs = 1; AU.calPts = []; AU.cal = null; AU.last = -1; toast(CALMSG[0]); beep(700, .06); }
 function calTap(e, r){
