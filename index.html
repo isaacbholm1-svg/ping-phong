@@ -1020,7 +1020,7 @@ function cueBuildRoi(){
   poly.forEach(function(p){ x0 = Math.min(x0, p[0]); x1 = Math.max(x1, p[0]); y0 = Math.min(y0, p[1]); y1 = Math.max(y1, p[1]); });
   AU.roi = new Uint8Array(W * H);
   for (y = Math.max(1, Math.floor(y0)); y < Math.min(H - 1, y1); y++) for (x = Math.max(1, Math.floor(x0)); x < Math.min(W - 1, x1); x++) if (pip(poly, x, y)){ AU.roi[y * W + x] = 1; list.push(y * W + x); }
-  AU.roiIdx = Int32Array.from(list); AU.gb = {x0:x0, y0:y0, w:Math.max(1, x1 - x0), h:Math.max(1, y1 - y0)}; AU.cm = null; AU.cmInit = false; AU.fn = 0; AU.adj = 0; AU.noisy = 0;
+  AU.roiIdx = Int32Array.from(list); AU.gb = {x0:x0, y0:y0, w:Math.max(1, x1 - x0), h:Math.max(1, y1 - y0)}; AU.cm = null; AU.cmInit = false; AU.fn = 0; AU.adj = 0; AU.noisy = 0; AU.quiet = 0; AU.hs = 0;
   var pp = cuePockets(), tw = Math.max(Math.hypot(pp.pk[2][0] - pp.pk[0][0], pp.pk[2][1] - pp.pk[0][1]), Math.hypot(pp.pk[3][0] - pp.pk[0][0], pp.pk[3][1] - pp.pk[0][1])), D0 = tw * .0185;
   AU.ba = AU.ba0 = Math.PI / 4 * D0 * D0;
 }
@@ -1111,27 +1111,29 @@ function cueLoop(){
   var A = AU.ba, Dm = Math.sqrt(4 * A / Math.PI), dets = [], clusters = [], hand = false;
   for (k = 0; k < ri.length; k++){
     i = ri[k]; if (!mask[i] || seen[i]) continue;
-    var sp = 0, a = 0, sx = 0, sy = 0, cr = 0, cg = 0, cb = 0, wh = 0, ax = W, bx = 0, ay = H, by = 0; stack[sp++] = i; seen[i] = 1;
+    var sp = 0, a = 0, sx = 0, sy = 0, cr = 0, cg = 0, cb = 0, wh = 0, edge = false, ax = W, bx = 0, ay = H, by = 0; stack[sp++] = i; seen[i] = 1;
     while (sp){
       var q = stack[--sp], qx = q % W, qy = (q / W) | 0; a++; sx += qx; sy += qy; cr += d[q * 4]; cg += d[q * 4 + 1]; cb += d[q * 4 + 2]; if (d[q * 4] > 185 && d[q * 4 + 1] > 185 && d[q * 4 + 2] > 185) wh++;
-      if (qx < ax) ax = qx; if (qx > bx) bx = qx; if (qy < ay) ay = qy; if (qy > by) by = qy;
+      if (qx < ax) ax = qx; if (qx > bx) bx = qx; if (qy < ay) ay = qy; if (qy > by) by = qy; if (!roi[q - 1] || !roi[q + 1] || !roi[q - W] || !roi[q + W]) edge = true;
       if (roi[q - 1] && mask[q - 1] && !seen[q - 1]){ seen[q - 1] = 1; stack[sp++] = q - 1; }
       if (roi[q + 1] && mask[q + 1] && !seen[q + 1]){ seen[q + 1] = 1; stack[sp++] = q + 1; }
       if (roi[q - W] && mask[q - W] && !seen[q - W]){ seen[q - W] = 1; stack[sp++] = q - W; }
       if (roi[q + W] && mask[q + W] && !seen[q + W]){ seen[q + W] = 1; stack[sp++] = q + W; }
     }
     var bw = bx - ax + 1, bh = by - ay + 1;
-    if (a < .4 * A) continue;
-    if (a > 5 * A || bw > Dm * 3.2 || bh > Dm * 3.2){ hand = true; continue; }
-    if (a > 1.9 * A){ clusters.push({x0:ax - 3 * u, x1:bx + 3 * u, y0:ay - 3 * u, y1:by + 3 * u}); continue; }
-    if (a / (bw * bh) < .6 || Math.max(bw / bh, bh / bw) > 1.5) continue;
+    if (a < .25 * A) continue;
+    if (a > 6 * A || bw > Dm * 4 || bh > Dm * 4){ if (!edge) hand = true; continue; }
+    if (a > 2.2 * A){ if (edge) continue; clusters.push({x0:ax - 3 * u, x1:bx + 3 * u, y0:ay - 3 * u, y1:by + 3 * u}); continue; }
+    if (a / (bw * bh) < .45 || Math.max(bw / bh, bh / bw) > 1.8) continue;
     dets.push({x:sx / a, y:sy / a, c:[cr / a, cg / a, cb / a], a:a, w:wh / a});
   }
-  if (dets.length){ var av = dets.reduce(function(s2, p){ return s2 + p.a; }, 0) / dets.length; AU.ba = Math.min(AU.ba0 * 1.5, Math.max(AU.ba0 * .6, A * .98 + av * .02)); }
-  if (hand) AU.hand = t;
-  var handNow = t - AU.hand < 700;
+  if (dets.length){ var av = dets.reduce(function(s2, p){ return s2 + p.a; }, 0) / dets.length; AU.ba = Math.min(AU.ba0 * 3, Math.max(AU.ba0 * .3, A * .95 + av * .05)); }
+  AU.raw = dets.map(function(p){ return [p.x, p.y]; });
+  if (hand){ if (!AU.hs) AU.hs = t; AU.hand = t; } else if (t - AU.hand > 700) AU.hs = 0;
+  var handNow = t - AU.hand < 700 && t - AU.hs < 2500;
   /* too many "balls" = the detector is too sensitive for this light: tighten it automatically */
-  if (dets.length > 26){ if (++AU.noisy > 8){ AU.adj = Math.min(9, (AU.adj || 0) + 1); AU.noisy = 0; toast('Too many objects – tightening detection'); } } else AU.noisy = 0;
+  if (dets.length > 26){ if (++AU.noisy > 8){ AU.adj = Math.min(4, (AU.adj || 0) + 1); AU.noisy = 0; toast('Too many objects – tightening detection'); } } else AU.noisy = 0;
+  if (!dets.length){ if (++AU.quiet > 75){ AU.adj = Math.max(-6, (AU.adj || 0) - 1); AU.quiet = 0; toast('Nothing seen – boosting detection'); } } else AU.quiet = 0;
   /* 3. track: predicted position + colour identity, cheapest pairs first */
   var tr = AU.balls, pairs = [], tU = [], dU = [], moved = false;
   function cdist(a, b){ return Math.sqrt(Math.pow(a[0] - b[0], 2) + Math.pow(a[1] - b[1], 2) + Math.pow(a[2] - b[2], 2)); }
@@ -1190,7 +1192,7 @@ function drawCue(){
     x.fillStyle = '#0af'; AU.cq.forEach(function(q){ x.beginPath(); x.arc(q[0] * c.width, q[1] * c.height, 5, 0, 7); x.fill(); });
   }
   if (AU.cq.length === 4){
-    var pp = cuePockets(); x.strokeStyle = '#f90'; x.lineWidth = 2;
+    var pp = cuePockets(); (AU.raw || []).forEach(function(p){ x.fillStyle = 'rgba(255,230,0,.85)'; x.fillRect(p[0] * sx - 2, p[1] * sy - 2, 4, 4); }); x.strokeStyle = '#f90'; x.lineWidth = 2;
     pp.pk.forEach(function(q){ x.beginPath(); x.arc(q[0] * sx, q[1] * sy, pp.R * sx, 0, 7); x.stroke(); });
     AU.balls.forEach(function(b){
       if (b.age < 4 || b.miss > 3) return; x.strokeStyle = b.occ ? '#ff0' : '#fff'; x.lineWidth = 1.5; x.beginPath(); x.arc(b.x * sx, b.y * sy, 6, 0, 7); x.stroke();
@@ -1198,7 +1200,7 @@ function drawCue(){
     });
   }
   $('autoScore').textContent = (AU.turn === 0 ? '▶ ' : '') + dn(0) + ' ' + D.s[0] + '  –  ' + D.s[1] + ' ' + dn(1) + (AU.turn === 1 ? ' ◀' : '');
-  $('autoStat').textContent = AU.fps + ' fps · ' + (AU.cq.length < 4 ? CUEMSG[AU.cq.length] : (AU.conf || 0) + ' balls' + (AU.conf > 22 ? ' (too many – lower Sensitivity)' : '') + ' · turn: ' + pn(AU.turn) + (/snooker/i.test(D.title) ? ' · on: ' + snOn() + ' · reds ' + AU.sn.reds : AU.grp[AU.turn] ? ' · you: ' + AU.grp[AU.turn] + 's' : '') + (AU.handNow ? ' · hand/cue in view' : ''));
+  $('autoStat').textContent = AU.fps + ' fps · ' + (AU.cq.length < 4 ? CUEMSG[AU.cq.length] : (AU.conf || 0) + ' balls (' + (AU.raw ? AU.raw.length : 0) + ' seen)' + (AU.conf > 22 ? ' (too many – lower Sensitivity)' : '') + ' · turn: ' + pn(AU.turn) + (/snooker/i.test(D.title) ? ' · on: ' + snOn() + ' · reds ' + AU.sn.reds : AU.grp[AU.turn] ? ' · you: ' + AU.grp[AU.turn] + 's' : '') + (AU.handNow ? ' · hand/cue in view' : ''));
 }
 
 /* ---------- languages (interface text; game names stay in English) ---------- */
