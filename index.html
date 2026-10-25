@@ -10,6 +10,7 @@
 <meta name="theme-color" content="#090d16">
 <title>Game Pro – Game Hub &amp; Scoreboard</title>
 <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <style>
 :root{--font:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;--bg:#090d16;--card:#121824;--border:#2a3447;--text:#f0f6fc;--sub:#8b949e;--accent:#3b82f6;--glow:rgba(59,130,246,.3);--green:#10b981;--red:#ef4444;--yellow:#f59e0b;--purple:#8b5cf6;--on-accent:#fff}
 [data-theme=cyberpunk]{--bg:#05050a;--card:#0f0f1f;--border:#ff007f44;--text:#0fff50;--sub:#a855f7;--accent:#ff007f;--glow:rgba(255,0,127,.4);--green:#0fff50;--red:#ff3333;--yellow:#ffff00;--purple:#a855f7}
@@ -153,7 +154,7 @@ header{box-shadow:0 2px 16px rgba(0,0,0,.25)}
 <body>
 <header>
   <div class="brand">GAME PRO 🏆</div>
-  <div class="hdr"><button class="btn-icon" onclick="openPeople()">👤</button><button class="btn-icon" onclick="openStats(true)">🏅</button><button class="btn-icon" onclick="openSettings()">⚙️</button>
+  <div class="hdr"><button class="btn-icon" onclick="openPhones()">👥</button><button class="btn-icon" onclick="openPeople()">👤</button><button class="btn-icon" onclick="openStats(true)">🏅</button><button class="btn-icon" onclick="openSettings()">⚙️</button>
     <button class="btn-icon" onclick="cycleTheme()">🎨</button>
     <button class="btn-icon" onclick="showScreen('menu')">🏠 Home</button>
   </div>
@@ -205,6 +206,8 @@ header{box-shadow:0 2px 16px rgba(0,0,0,.25)}
     <button class="ctrl-btn" onclick="resetMulti()">🔄 Reset Scores</button>
   </div>
 </section>
+
+<section id="screen-phones" class="screen pad"><div id="phonesBody"></div></section>
 
 <section id="screen-people" class="screen pad"><div id="peopleBody"></div></section>
 
@@ -295,7 +298,7 @@ header{box-shadow:0 2px 16px rgba(0,0,0,.25)}
   <div class="autoctl ttonly" id="autoBall"><span>Ball:</span><button class="sm-btn" data-b="auto">Auto</button><button class="sm-btn" data-b="white">⚪ White</button><button class="sm-btn" data-b="orange">🟠 Orange</button><button class="sm-btn" data-b="custom">🎯 Learn</button></div>
   <div class="autohelp" id="autoStat" style="padding:2px 12px"></div>
   <div class="autoctl">
-    <button class="sm-btn ttonly" onclick="startTeach()">🎓 Teach ball</button><button class="sm-btn ttonly" onclick="startCal()">📐 Calibrate</button><button class="sm-btn ttonly" id="stayBtn" onclick="toggleStay()">⏱ Stay rule</button><button class="sm-btn ttonly" onclick="autoSwap()">⇄ Swap sides</button>
+    <button class="sm-btn ttonly" id="micBtn" onclick="toggleMic()">🎤 Mic: off</button><button class="sm-btn ttonly" onclick="startTeach()">🎓 Teach ball</button><button class="sm-btn ttonly" onclick="startCal()">📐 Calibrate</button><button class="sm-btn ttonly" id="stayBtn" onclick="toggleStay()">⏱ Stay rule</button><button class="sm-btn ttonly" onclick="autoSwap()">⇄ Swap sides</button>
     <button class="sm-btn" onclick="autoCam()">🔄 Camera</button><button class="sm-btn cueonly" id="pkBtn" onclick="pkEdit()">🕳 Move holes</button><label class="cueonly">Hole size <input type="range" id="pkSize" min="50" max="220" value="100" oninput="AU.pks = this.value / 100"></label>
     <button class="sm-btn cueonly red" onclick="cueFoul()">⚠️ Foul</button><button class="sm-btn cueonly" onclick="cueTurn()">⇄ Turn</button><button class="sm-btn cueonly" onclick="cueReset()">📐 Redo setup</button>
     <label>Sensitivity <input type="range" id="autoSens" min="1" max="10" value="5" oninput="AU.sens=+this.value"></label>
@@ -496,10 +499,10 @@ function drawDual(){
     $('dserve' + i).classList.toggle('on', dualServer() === i);
   }
   $('dstatus').textContent = D.title + ' · first to ' + D.target + ', win by 2' + (D.bestOf > 1 ? ' · best of ' + D.bestOf : '');
-  $('deuce').classList.toggle('on', isDeuce());
+  $('deuce').classList.toggle('on', isDeuce()); if (PH.isHost) phSendState();
 }
 function snap(){ dHist.push(JSON.stringify({s:D.s.slice(), sets:D.sets.slice(), first:D.first, games:D.games})); if (dHist.length > 200) dHist.shift(); }
-function dualPoint(p, n){
+function dualPoint(p, n){ if (PH.up && !PH.isHost && PH.relay){ PH.up.send({t:'pt', p:p, n:n || 1}); return; }
   if (D.over) return;
   snap(); D.s[p] += (n || 1); fx(p, n); buzz(25); beep(p ? 560 : 760, .07);
   var a = D.s[p], b = D.s[1 - p];
@@ -859,7 +862,7 @@ $('peopleBody').addEventListener('click', function(e){
 });
 
 /* ---------- Auto-Score (BETA): camera ball tracking ---------- */
-var AUTOMODE = '', AU = {stay:load('astay', true), cal:null, cs:0, calPts:[], facing:'environment', mode:'tt', cloth:load('acloth', null), tl:null, br:null, balls:[], turn:0, moving:false, still:0, cnt:0, shotPot:false, foul:false, pendN:1, on:false, stream:null, raf:0, prev:null, W:96, H:72, net:.5, swap:false, sens:5, trk:[], last:-1, lastT:0, cool:0, pend:null, pendT:0, cv:null, cx:null, bx:0, by:0, bt:-9999, gen:0, ball:load('aball', 'auto'), lc:load('alc', [255, 140, 30]), lcr:load('alcr', 5000), tch:null, pick:false, fps:0, fc:0, ft:0, mask:null, seen:null, stack:null};
+var AUTOMODE = '', AU = {stay:load('astay', true), cal:null, cs:0, calPts:[], facing:'environment', mode:'tt', cloth:load('acloth', null), tl:null, br:null, balls:[], turn:0, moving:false, still:0, cnt:0, shotPot:false, foul:false, pendN:1, on:false, stream:null, raf:0, prev:null, W:96, H:72, net:.5, swap:false, sens:5, trk:[], last:-1, lastT:0, cool:0, pend:null, pendT:0, cv:null, cx:null, bx:0, by:0, bt:-9999, gen:0, ball:load('aball', 'auto'), lc:load('alc', [255, 140, 30]), lcr:load('alcr', 5000), tch:null, mic:load('amic', false), nclick:0, clicks:[], an:null, pick:false, fps:0, fc:0, ft:0, mask:null, seen:null, stack:null};
 function toPlayer(side){ return AU.swap ? 1 - side : side; }
 function syncBall(){ document.querySelectorAll('#autoBall [data-b]').forEach(function(b){ b.classList.toggle('accent', b.dataset.b === AU.ball || (b.dataset.b === 'custom' && AU.pick)); }); }
 $('autoBall').addEventListener('click', function(e){
@@ -878,11 +881,11 @@ function openAuto(mode){
     AU.cq = []; AU.roi = null; AU.pkn = null; AU.pks = 1; AU.pedit = false; $('pkSize').value = 100; $('pkBtn').textContent = '🕳 Move holes'; AU.pt = 0; AU.hand = 0; AU.ba = 12; AU.sn = {ph:'red', reds:15, ti:0}; AU.grp = [null, null]; AU.gp = {solid:0, stripe:0}; AU.balls = []; AU.turn = 0; AU.moving = false; AU.still = 0; AU.cnt = 0; AU.shotPot = AU.foul = false;
     AU.cs = 0; AU.cal = null; AU.calPts = []; $('stayBtn').textContent = '⏱ Stay rule: ' + (AU.stay ? 'on' : 'off'); AU.help = AU.help || $('autoHelp').textContent; $('autoOv').dataset.mode = AU.mode;
     $('autoHelp').textContent = AU.mode === 'cue' ? 'Hold your phone above the table (or high at an angle) so the whole cloth is in view. Tap the 4 corners of the playing surface (top-left, top-right, bottom-right, bottom-left). A ball that vanishes into a pocket scores for the player whose turn it is. The turn passes when a shot pots nothing. Use ⇄ Turn to fix it.' : AU.help;
-    syncBall(); $('autoOv').classList.add('show'); autoNext(); beep(800, .1); if (AU.mode === 'tt') startCal();
+    syncBall(); $('autoOv').classList.add('show'); autoNext(); beep(800, .1); if (AU.mode === 'tt'){ startCal(); $('micBtn').textContent = '🎤 Mic: ' + (AU.mic ? 'on' : 'off'); if (AU.mic) micOn(); }
   }).catch(function(){ toast('Allow camera access to use Auto-Score'); });
 }
 function closeAuto(){
-  AU.on = false; AU.gen++; cancelAnimationFrame(AU.raf); clearTimeout(AU.pendT); AU.pend = null; $('autoBan').style.display = 'none';
+  micStop(); AU.on = false; AU.gen++; cancelAnimationFrame(AU.raf); clearTimeout(AU.pendT); AU.pend = null; $('autoBan').style.display = 'none';
   if (AU.stream) AU.stream.getTracks().forEach(function(t){ t.stop(); }); AU.stream = null; $('autoOv').classList.remove('show');
 }
 function autoNet(e){
@@ -913,6 +916,7 @@ function detectBounce(t){
   var s = [], i; for (i = n - 4; i < n; i++) s.push(k[i].y - k[i - 1].y);
   if ((s[0] + s[1]) / 2 > .9 && (s[2] + s[3]) / 2 < -.9 && k[n - 1].t - k[n - 5].t < 260){
     var m = k[n - 3]; if (!onTable(m) || t - AU.bt < 150) return;
+    if (AU.an && !heard(t)) return;   /* mic is on: a real table bounce must also make a click */
     var side = sideOf(m); AU.bx = m.x; AU.by = m.y; AU.bt = t; beep(1200, .03);
     if (side === AU.last){ AU.last = -1; AU.cool = t + 1500; queuePoint(toPlayer(1 - side)); }
     else { AU.last = side; AU.lastT = t; }
@@ -965,7 +969,7 @@ function autoLoop(){
   if (AU.last > -1 && t - AU.lastT > (AU.stay ? 1800 : 2500)){
     if (AU.stay && AU.pend === null && t > AU.cool && !D.over){ var sd = AU.last; AU.last = -1; AU.cool = t + 1500; queuePoint(toPlayer(1 - sd)); } else AU.last = -1;
   }
-  teachStep(best, t); drawAuto(best, t);
+  micPoll(t); teachStep(best, t); drawAuto(best, t);
 }
 function drawAuto(b, t){
   var c = $('autoCv'), x = c.getContext('2d'), sx = c.width / AU.W, sy = c.height / AU.H;
@@ -977,11 +981,28 @@ function drawAuto(b, t){
   if (t - AU.bt < 700){ x.fillStyle = '#f33'; x.beginPath(); x.arc(AU.bx * sx, AU.by * sy, 10, 0, 7); x.fill(); }
   var l = toPlayer(0), rr = toPlayer(1);
   $('autoScore').textContent = '◀ ' + dn(l) + ' ' + D.s[l] + '  –  ' + D.s[rr] + ' ' + dn(rr) + ' ▶';
-  $('autoStat').textContent = AU.fps + ' fps · ' + (AU.trk.length ? 'tracking ball ✓' : 'searching…') + ' · ' + (AU.tch ? (AU.tch.p ? 'teaching… ' + Math.max(0, 6 - Math.round((performance.now() - AU.tch.t0) / 1000)) + 's · ' + AU.tch.s.length + ' samples' : 'tap the ball') : AU.cs ? CALMSG[AU.cs - 1] : AU.pick ? 'tap the ball' : AU.ball);
+  $('autoStat').textContent = AU.fps + ' fps · ' + (AU.trk.length ? 'tracking ball ✓' : 'searching…') + ' · ' + (AU.tch ? (AU.tch.p ? 'teaching… ' + Math.max(0, 6 - Math.round((performance.now() - AU.tch.t0) / 1000)) + 's · ' + AU.tch.s.length + ' samples' : 'tap the ball') : AU.cs ? CALMSG[AU.cs - 1] : AU.pick ? 'tap the ball' : AU.ball) + (AU.an ? ' · 🎤 ' + (AU.nclick || 0) + ' hits' : '');
 }
 
 var CALMSG = ['Tap the FAR-LEFT corner of the table', 'Tap the FAR-RIGHT corner', 'Tap the NEAR-RIGHT corner', 'Tap the NEAR-LEFT corner'];
 /* Teach mode: tap the ball, move it around for 6 s; the app follows it and learns its real colour range under YOUR lighting */
+/* Microphone: ping pong bounces are sharp high-pitched clicks. When the mic is on, a camera-detected bounce only counts if a click was heard at the same moment. */
+function micOn(){
+  navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false, noiseSuppression:false, autoGainControl:false}}).then(function(st){
+    AU.mst = st; var ac = AU.ac || (AU.ac = new (window.AudioContext || window.webkitAudioContext)()); if (ac.state === 'suspended') ac.resume();
+    var src = ac.createMediaStreamSource(st), hp = ac.createBiquadFilter(), an = ac.createAnalyser(); hp.type = 'highpass'; hp.frequency.value = 2000; an.fftSize = 2048;
+    src.connect(hp); hp.connect(an); AU.an = an; AU.abuf = new Float32Array(2048); AU.avg = .01; AU.clicks = []; AU.nclick = 0; AU.lastClick = 0; toast('🎤 Listening for bounces');
+  }).catch(function(){ AU.mic = false; AU.an = null; $('micBtn').textContent = '🎤 Mic: off'; toast('Microphone blocked – allow it in Safari settings'); });
+}
+function micStop(){ if (AU.mst) AU.mst.getTracks().forEach(function(t){ t.stop(); }); AU.mst = null; AU.an = null; }
+function toggleMic(){ AU.mic = !AU.mic; save('amic', AU.mic); $('micBtn').textContent = '🎤 Mic: ' + (AU.mic ? 'on' : 'off'); if (AU.mic) micOn(); else micStop(); beep(600, .05); }
+function micPoll(t){
+  if (!AU.an) return; AU.an.getFloatTimeDomainData(AU.abuf); var pk = 0, i;
+  for (i = 0; i < AU.abuf.length; i++){ var a = Math.abs(AU.abuf[i]); if (a > pk) pk = a; }
+  if (pk > Math.max(.03, AU.avg * 4) && t - AU.lastClick > 80){ AU.lastClick = t; AU.nclick++; AU.clicks.push(t); if (AU.clicks.length > 8) AU.clicks.shift(); }
+  AU.avg = AU.avg * .97 + pk * .03;
+}
+function heard(t){ return AU.clicks.some(function(c){ return t - c < 350 && t - c > -100; }); }
 function startTeach(){ AU.tch = {p:null, s:[], t0:0}; AU.pick = false; toast('Hold the ball by your fingertips, tap it, then move it around'); beep(700, .06); }
 function teachStep(b, t){
   var T = AU.tch; if (!T || !T.p) return;
@@ -1294,6 +1315,77 @@ new MutationObserver(function(ms){
 $('setExtra').addEventListener('click', function(e){
   var b = e.target.closest('[data-lang]'); if (!b) return;
   LANG = b.dataset.lang; save('lang', LANG); applyLang(); buildSettings(); beep(700, .08);
+});
+
+/* ---------- several phones: host + up to 5 joiners, names, roles, shared live score ---------- */
+var ROLES = ['Overhead', 'Left side', 'Right side', 'Scorer'];
+var PH = {peer:null, up:null, conns:{}, ros:{}, list:[], isHost:false, code:'', name:'Phone 2', role:'', relay:true, st:null};
+function openPhones(){ drawPhones(); showScreen('phones'); }
+function phNext(){ var used = {}; Object.keys(PH.ros).forEach(function(k){ used[PH.ros[k].name] = 1; }); for (var n = 2; n <= 6; n++) if (!used['Phone ' + n]) return 'Phone ' + n; return null; }
+function phHost(){
+  if (!window.Peer){ toast('Linking phones needs internet'); return; }
+  PH.isHost = true; PH.code = Math.random().toString(36).slice(2, 7).toUpperCase(); PH.peer = new Peer('gp-' + PH.code);
+  PH.peer.on('open', function(){ drawPhones(); phRoster(); });
+  PH.peer.on('error', function(){ toast('Could not start the room – try again'); phLeave(); });
+  PH.peer.on('connection', function(c){
+    var n = phNext(); if (!n){ c.close(); return; }
+    PH.conns[c.peer] = c; PH.ros[c.peer] = {name:n, role:'—'};
+    c.on('open', function(){ c.send({t:'hello', name:n}); phRoster(); phSendState(); toast(n + ' joined'); buzz(30); });
+    c.on('data', function(m){
+      if (m.t === 'role' && PH.ros[c.peer]){ PH.ros[c.peer].role = m.role; phRoster(); }
+      else if (m.t === 'pt' && D && !D.over && $('screen-dual').classList.contains('active')) dualPoint(m.p, m.n);
+    });
+    c.on('close', function(){ delete PH.conns[c.peer]; delete PH.ros[c.peer]; phRoster(); });
+  });
+}
+function phJoin(code){
+  if (!window.Peer){ toast('Linking phones needs internet'); return; } if (code.length < 3){ toast('Type the room code'); return; }
+  PH.code = code; PH.relay = true; PH.peer = new Peer();
+  PH.peer.on('error', function(){ toast('Could not find that room'); phLeave(); });
+  PH.peer.on('open', function(){
+    var c = PH.up = PH.peer.connect('gp-' + code, {reliable:true});
+    c.on('open', function(){ toast('Connected ✅'); drawPhones(); });
+    c.on('data', function(m){
+      if (m.t === 'hello') PH.name = m.name; else if (m.t === 'roster') PH.list = m.list;
+      else if (m.t === 'state'){ PH.st = m; if (D && D.title === m.title){ D.s = m.s.slice(); D.sets = m.sets.slice(); D.over = m.over; drawDual(); } }
+      drawPhones();
+    });
+    c.on('close', function(){ toast('Host left the room'); phLeave(); });
+  });
+}
+function phLeave(){ try{ if (PH.peer) PH.peer.destroy(); }catch(e){} PH.peer = PH.up = null; PH.conns = {}; PH.ros = {}; PH.list = []; PH.isHost = false; PH.st = null; drawPhones(); }
+function phRoster(){
+  var list = [{name:'Phone 1', role:PH.role || '—'}]; Object.keys(PH.ros).forEach(function(k){ list.push({name:PH.ros[k].name, role:PH.ros[k].role}); }); PH.list = list;
+  Object.keys(PH.conns).forEach(function(k){ try{ PH.conns[k].send({t:'roster', list:list}); }catch(e){} }); drawPhones();
+}
+function phSendState(){
+  if (!PH.isHost || !D) return; var m = {t:'state', title:D.title, names:[dn(0), dn(1)], s:D.s.slice(), sets:D.sets.slice(), over:D.over};
+  Object.keys(PH.conns).forEach(function(k){ try{ PH.conns[k].send(m); }catch(e){} });
+}
+function drawPhones(){
+  var h = '<h3 style="margin-bottom:10px">👥 Phones</h3>';
+  if (!PH.peer){
+    h += '<div class="box"><h4>Host a room</h4><div class="hist">This phone becomes Phone 1</div><button class="sm-btn accent" style="width:100%;padding:12px;margin-top:10px" data-a="host">Start room</button></div>'
+      + '<div class="box"><h4>Join a room</h4><input class="search" id="phCode" maxlength="5" placeholder="5-letter code" style="margin:10px 0;text-transform:uppercase"><button class="sm-btn green" style="width:100%;padding:12px" data-a="join">Join</button></div>';
+  } else {
+    var nm = PH.isHost ? 'Phone 1' : PH.name;
+    h += '<div class="box"><div class="big" style="font-size:2.6rem;margin:4px 0">' + esc(nm.toUpperCase()) + '</div><div class="hist">Room code</div><div class="big" style="letter-spacing:6px;font-size:2rem;margin:4px 0">' + esc(PH.code) + '</div></div>'
+      + '<h4 style="color:var(--sub);font-size:.8rem;margin:10px 0 8px">Job of this phone</h4><div class="wrap" style="justify-content:flex-start;margin-bottom:12px">'
+      + ROLES.map(function(r){ return '<button class="sm-btn' + (PH.role === r ? ' accent' : '') + '" data-a="role" data-v="' + r + '">' + r + '</button>'; }).join('') + '</div>'
+      + PH.list.map(function(q){ return '<div class="row"><div class="pname">📱 ' + esc(q.name) + '</div><b>' + esc(q.role) + '</b></div>'; }).join('');
+    var st = PH.isHost ? (D ? {names:[dn(0), dn(1)], s:D.s} : null) : PH.st;
+    h += '<div class="box" style="margin-top:12px"><h4>Live score</h4>' + (st ? '<div class="big" style="font-size:1.8rem">' + esc(st.names[0]) + ' ' + st.s[0] + ' – ' + st.s[1] + ' ' + esc(st.names[1]) + '</div><div class="wrap"><button class="sm-btn green" data-a="pt" data-v="0">+1 ' + esc(st.names[0]) + '</button><button class="sm-btn green" data-a="pt" data-v="1">+1 ' + esc(st.names[1]) + '</button></div>' : '<div class="hist">Open a two-player game on the host phone.</div>') + '</div>';
+    if (!PH.isHost) h += '<button class="sm-btn' + (PH.relay ? ' green' : '') + '" data-a="relay" style="width:100%;margin-bottom:8px">Send my Auto-Score points to the host: ' + (PH.relay ? 'on' : 'off') + '</button>';
+    h += '<button class="sm-btn red" style="width:100%" data-a="leave">Leave room</button>';
+  }
+  $('phonesBody').innerHTML = h;
+}
+$('phonesBody').addEventListener('click', function(e){
+  var b = e.target.closest('[data-a]'); if (!b) return; var a = b.dataset.a, v = b.dataset.v; beep(600, .05);
+  if (a === 'host') phHost(); else if (a === 'join') phJoin(($('phCode').value || '').trim().toUpperCase());
+  else if (a === 'role'){ PH.role = v; if (PH.isHost) phRoster(); else if (PH.up) PH.up.send({t:'role', role:v}); drawPhones(); }
+  else if (a === 'pt'){ if (PH.isHost){ if (D && !D.over) dualPoint(+v); } else if (PH.up) PH.up.send({t:'pt', p:+v, n:1}); }
+  else if (a === 'relay'){ PH.relay = !PH.relay; drawPhones(); } else if (a === 'leave') phLeave();
 });
 
 /* ---------- extra settings ---------- */
