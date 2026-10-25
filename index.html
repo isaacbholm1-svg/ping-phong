@@ -296,7 +296,7 @@ header{box-shadow:0 2px 16px rgba(0,0,0,.25)}
   <div class="autohelp" id="autoStat" style="padding:2px 12px"></div>
   <div class="autoctl">
     <button class="sm-btn ttonly" onclick="startCal()">📐 Calibrate</button><button class="sm-btn ttonly" id="stayBtn" onclick="toggleStay()">⏱ Stay rule</button><button class="sm-btn ttonly" onclick="autoSwap()">⇄ Swap sides</button>
-    <button class="sm-btn" onclick="autoCam()">🔄 Camera</button><button class="sm-btn cueonly" onclick="cueTurn()">⇄ Turn</button><button class="sm-btn cueonly" onclick="cueReset()">📐 Redo setup</button>
+    <button class="sm-btn" onclick="autoCam()">🔄 Camera</button><button class="sm-btn cueonly red" onclick="cueFoul()">⚠️ Foul</button><button class="sm-btn cueonly" onclick="cueTurn()">⇄ Turn</button><button class="sm-btn cueonly" onclick="cueReset()">📐 Redo setup</button>
     <label>Sensitivity <input type="range" id="autoSens" min="1" max="10" value="5" oninput="AU.sens=+this.value"></label>
     <button class="sm-btn red" onclick="closeAuto()">■ Stop</button>
   </div>
@@ -874,7 +874,7 @@ function openAuto(mode){
     AU.gen++; AU.on = true; AU.prev = null; AU.trk = []; AU.last = -1; AU.cool = 0; AU.pend = null; AU.pick = false; AU.ft = performance.now(); AU.fc = 0;
     AU.cv = document.createElement('canvas'); AU.cv.width = AU.W; AU.cv.height = AU.H; AU.cx = AU.cv.getContext('2d', {willReadFrequently:true});
     try{ if (navigator.wakeLock) navigator.wakeLock.request('screen').catch(function(){}); }catch(e){}
-    AU.cq = []; AU.roi = null; AU.hand = 0; AU.ba = 12; AU.balls = []; AU.turn = 0; AU.moving = false; AU.still = 0; AU.cnt = 0; AU.shotPot = AU.foul = false;
+    AU.cq = []; AU.roi = null; AU.hand = 0; AU.ba = 12; AU.sn = {ph:'red', reds:15, ti:0}; AU.grp = [null, null]; AU.gp = {solid:0, stripe:0}; AU.balls = []; AU.turn = 0; AU.moving = false; AU.still = 0; AU.cnt = 0; AU.shotPot = AU.foul = false;
     AU.cs = 0; AU.cal = null; AU.calPts = []; $('stayBtn').textContent = '⏱ Stay rule: ' + (AU.stay ? 'on' : 'off'); AU.help = AU.help || $('autoHelp').textContent; $('autoOv').dataset.mode = AU.mode;
     $('autoHelp').textContent = AU.mode === 'cue' ? 'Hold your phone above the table (or high at an angle) so the whole cloth is in view. Tap the cloth to learn its color, then tap the 4 corners of the playing surface (top-left, top-right, bottom-right, bottom-left). A ball that vanishes into a pocket scores for the player whose turn it is. The turn passes when a shot pots nothing. Use ⇄ Turn to fix it.' : AU.help;
     syncBall(); $('autoOv').classList.add('show'); autoNext(); beep(800, .1); if (AU.mode === 'tt') startCal();
@@ -1039,14 +1039,43 @@ function cueTap(e, r){
   beep(800, .08);
 }
 function cueReset(){ AU.cloth = null; AU.cq = []; AU.roi = null; AU.balls = []; AU.cnt = 0; toast(CUEMSG[0]); beep(450, .06); }
+function cueFoul(){
+  var snooker = /snooker/i.test(D.title), S = AU.sn, opp = 1 - AU.turn; if (D.over) return;
+  if (snooker && S.ph === 'color'){ S.ph = S.reds > 0 ? 'red' : 'order'; S.ti = 0; }
+  potEvent(opp, snooker ? 4 : 1); AU.turn = opp; AU.shotPot = AU.foul = false; AU.moving = false; buzz([40, 30, 40]); beep(300, .2, 'square');
+  toast(snooker ? '⚠️ Foul – ' + pn(AU.turn) + ' to play. Free ball if snookered' : '✋ Foul – ball in hand for ' + pn(AU.turn));
+}
 function cueTurn(){ AU.turn = 1 - AU.turn; beep(650, .06); toast('Turn → ' + pn(AU.turn)); }
-function cuePot(c){
-  var snooker = /snooker/i.test(D.title), nm = 'ball', val = 1, k;
-  if (snooker){ var bd = 1e9; for (k in REF){ var q = REF[k][0], dd = Math.pow(q[0] - c[0], 2) + Math.pow(q[1] - c[1], 2) + Math.pow(q[2] - c[2], 2); if (dd < bd){ bd = dd; nm = k; val = REF[k][1]; } } }
-  else if (Math.min(c[0], c[1], c[2]) > 190){ nm = 'white'; val = 0; }
-  AU.shotPot = true; buzz(25); beep(900, .1);
-  if (val === 0){ AU.foul = true; toast('⚪ Cue ball potted – foul'); potEvent(1 - AU.turn, snooker ? 4 : 1); }
-  else { toast('🎱 ' + nm + ' potted'); potEvent(AU.turn, val); }
+var SNORDER = ['yellow', 'green', 'brown', 'blue', 'pink', 'black'];
+function snOn(){ var S = AU.sn; return S.ph === 'red' ? 'red' : S.ph === 'color' ? 'any colour' : S.ti > 5 ? 'frame over' : SNORDER[S.ti]; }
+function cuePot(c, w){
+  var snooker = /snooker/i.test(D.title), nm = 'ball', val = 1, k, S = AU.sn, cur = AU.turn, opp = 1 - cur;
+  buzz(25); beep(900, .1);
+  if (snooker){
+    var bd = 1e9; for (k in REF){ var q = REF[k][0], dd = Math.pow(q[0] - c[0], 2) + Math.pow(q[1] - c[1], 2) + Math.pow(q[2] - c[2], 2); if (dd < bd){ bd = dd; nm = k; val = REF[k][1]; } }
+    if (AU.foul) return;                                  /* nothing scores after a foul in the same shot */
+    var pen = 0, ok = false; AU.shotPot = true;
+    if (val === 0) pen = 4;                               /* cue ball potted */
+    else if (S.ph === 'red'){ if (nm === 'red'){ ok = true; S.reds = Math.max(0, S.reds - 1); S.ph = 'color'; } else pen = Math.max(4, val); }
+    else if (S.ph === 'color'){ if (nm !== 'red'){ ok = true; S.ph = S.reds > 0 ? 'red' : 'order'; S.ti = 0; } else { pen = 4; S.reds = Math.max(0, S.reds - 1); } }
+    else if (nm === SNORDER[S.ti]){ ok = true; S.ti++; if (S.ti > 5) toast('🏁 Frame over – last black potted'); }
+    else pen = Math.max(4, val);
+    if (ok) potEvent(cur, val), toast('🎱 ' + nm + ' ✓ +' + val);
+    else { AU.foul = true; if (S.ph === 'color'){ S.ph = S.reds > 0 ? 'red' : 'order'; S.ti = 0; } toast('⚠️ Foul – ' + (val === 0 ? 'cue ball' : nm + ' was not on') + ' → ' + pn(opp) + ' +' + pen); potEvent(opp, pen); }
+    return;
+  }
+  var lum = (c[0] + c[1] + c[2]) / 3, G = AU.grp;
+  if (lum > 185 && w > .8){ AU.foul = true; toast('⚪ Cue ball potted – foul'); potEvent(opp, 1); return; }
+  AU.shotPot = true;
+  if (lum < 55){
+    var mine = G[cur] && AU.gp[G[cur]] >= 7, win = mine ? cur : opp;
+    toast(mine ? '⚫ 8-ball potted legally' : '⚫ 8-ball potted too early'); setTimeout(function(){ toast('🏆 ' + pn(win) + ' wins the frame!'); }, 1500); celebrate();
+    AU.grp = [null, null]; AU.gp = {solid:0, stripe:0}; return;
+  }
+  nm = (w > .22 && w < .75) ? 'stripe' : 'solid'; AU.gp[nm]++;
+  if (!G[cur] && !G[opp]){ G[cur] = nm; G[opp] = nm === 'solid' ? 'stripe' : 'solid'; toast('You are ' + nm + 's (guess)'); }
+  if (G[cur] === nm){ toast(AU.gp[nm] >= 7 ? '🎱 Group cleared – the 8-ball is on' : '🎱 ' + nm + ' ✓'); potEvent(cur, 1); }
+  else { AU.foul = true; toast('🎱 ' + nm + ' belongs to ' + pn(opp)); potEvent(opp, 1); }
 }
 function cueLoop(){
   var v = $('autoVid'); if (v.readyState < 2) return;
@@ -1066,9 +1095,9 @@ function cueLoop(){
   var dets = [], clusters = [], hand = false, ba = AU.ba;
   for (k = 0; k < ri.length; k++){
     i = ri[k]; if (!mask[i] || seen[i]) continue;
-    var sp = 0, a = 0, sx = 0, sy = 0, cr = 0, cg = 0, cb = 0, ax = W, bx = 0, ay = H, by = 0; stack[sp++] = i; seen[i] = 1;
+    var sp = 0, a = 0, sx = 0, sy = 0, cr = 0, cg = 0, cb = 0, wh = 0, ax = W, bx = 0, ay = H, by = 0; stack[sp++] = i; seen[i] = 1;
     while (sp){
-      var q = stack[--sp], qx = q % W, qy = (q / W) | 0; a++; sx += qx; sy += qy; cr += d[q * 4]; cg += d[q * 4 + 1]; cb += d[q * 4 + 2];
+      var q = stack[--sp], qx = q % W, qy = (q / W) | 0; a++; sx += qx; sy += qy; cr += d[q * 4]; cg += d[q * 4 + 1]; cb += d[q * 4 + 2]; if (d[q * 4] > 185 && d[q * 4 + 1] > 185 && d[q * 4 + 2] > 185) wh++;
       if (qx < ax) ax = qx; if (qx > bx) bx = qx; if (qy < ay) ay = qy; if (qy > by) by = qy;
       if (roi[q - 1] && mask[q - 1] && !seen[q - 1]){ seen[q - 1] = 1; stack[sp++] = q - 1; }
       if (roi[q + 1] && mask[q + 1] && !seen[q + 1]){ seen[q + 1] = 1; stack[sp++] = q + 1; }
@@ -1080,7 +1109,7 @@ function cueLoop(){
     if (a > 4 * ba || bw > 24 || bh > 24){ hand = true; continue; }
     if (a > 1.6 * ba){ clusters.push({x0:ax - 3, x1:bx + 3, y0:ay - 3, y1:by + 3}); continue; }
     if (bw > 10 || bh > 10 || a / (bw * bh) < .5 || Math.max(bw / bh, bh / bw) > 1.9) continue;
-    dets.push({x:sx / a, y:sy / a, c:[cr / a, cg / a, cb / a], a:a});
+    dets.push({x:sx / a, y:sy / a, c:[cr / a, cg / a, cb / a], a:a, w:wh / a});
   }
   if (dets.length) AU.ba = ba * .97 + (dets.reduce(function(s2, p){ return s2 + p.a; }, 0) / dets.length) * .03;
   if (hand) AU.hand = t;
@@ -1089,7 +1118,7 @@ function cueLoop(){
   function cdist(a, b){ return Math.sqrt(Math.pow(a[0] - b[0], 2) + Math.pow(a[1] - b[1], 2) + Math.pow(a[2] - b[2], 2)); }
   function bind(b, p){
     var dx = p.x - b.x, dy = p.y - b.y; if (Math.hypot(dx, dy) > 1) moved = true;
-    b.vx = b.vx * .5 + dx * .5; b.vy = b.vy * .5 + dy * .5; b.x = p.x; b.y = p.y; b.c = [b.c[0] * .8 + p.c[0] * .2, b.c[1] * .8 + p.c[1] * .2, b.c[2] * .8 + p.c[2] * .2]; b.miss = 0; b.occ = false;
+    b.vx = b.vx * .5 + dx * .5; b.vy = b.vy * .5 + dy * .5; b.x = p.x; b.y = p.y; b.c = [b.c[0] * .8 + p.c[0] * .2, b.c[1] * .8 + p.c[1] * .2, b.c[2] * .8 + p.c[2] * .2]; b.w = b.w === undefined ? p.w : b.w * .8 + p.w * .2; b.miss = 0; b.occ = false;
   }
   tr.forEach(function(b, bi){
     var px = b.x + b.vx, py = b.y + b.vy, gate = 4 + Math.hypot(b.vx, b.vy) * 1.6;
@@ -1106,7 +1135,7 @@ function cueLoop(){
     if (tU[bi]) return;
     if (clusters.some(function(c){ return b.x >= c.x0 && b.x <= c.x1 && b.y >= c.y0 && b.y <= c.y1; })){ b.miss = 0; b.occ = true; b.vx *= .5; b.vy *= .5; } else b.miss++;
   });
-  dets.forEach(function(p, di){ if (!dU[di]) tr.push({x:p.x, y:p.y, vx:0, vy:0, c:p.c, miss:0, occ:false}); });
+  dets.forEach(function(p, di){ if (!dU[di]) tr.push({x:p.x, y:p.y, vx:0, vy:0, c:p.c, w:p.w, miss:0, occ:false}); });
   /* 4. a pot = track lost near a pocket, heading toward it, no hand in view, and the ball count really dropped */
   var pp = cuePockets(), pk = pp.pk, R = pp.R, handNow = t - AU.hand < 700;
   for (k = tr.length - 1; k >= 0; k--){
@@ -1114,14 +1143,14 @@ function cueLoop(){
     if (b.miss > 6 && !handNow){
       var near = -1; pk.forEach(function(c, ci){ if (Math.hypot(c[0] - b.x, c[1] - b.y) < R * 1.35) near = ci; });
       var alive = tr.filter(function(o){ return o !== b && o.miss <= 6; }).length;
-      if (near > -1 && alive < AU.cnt && (Math.hypot(b.vx, b.vy) < .3 || (pk[near][0] - b.x) * b.vx + (pk[near][1] - b.y) * b.vy > 0)){ cuePot(b.c); AU.cnt = alive; tr.splice(k, 1); continue; }
+      if (near > -1 && alive < AU.cnt && (Math.hypot(b.vx, b.vy) < .3 || (pk[near][0] - b.x) * b.vx + (pk[near][1] - b.y) * b.vy > 0)){ cuePot(b.c, b.w); AU.cnt = alive; tr.splice(k, 1); continue; }
     }
     if (b.miss > 60) tr.splice(k, 1);
   }
   /* 5. shot bookkeeping: motion -> rest, turn passes if nothing was potted */
   if (moved){ AU.moving = true; AU.still = 0; } else AU.still++;
   if (AU.moving && AU.still > 20){
-    AU.moving = false; if (!AU.shotPot || AU.foul){ AU.turn = 1 - AU.turn; toast('Turn → ' + pn(AU.turn)); } AU.shotPot = AU.foul = false;
+    AU.moving = false; if (AU.sn && /snooker/i.test(D.title) && !AU.shotPot && AU.sn.ph === 'color'){ AU.sn.ph = AU.sn.reds > 0 ? 'red' : 'order'; AU.sn.ti = 0; } if (!AU.shotPot || AU.foul){ var fl = AU.foul; AU.turn = 1 - AU.turn; toast(fl ? (/snooker/i.test(D.title) ? '⚠️ Foul – ' + pn(AU.turn) + ' to play. Free ball if snookered' : '✋ Ball in hand for ' + pn(AU.turn)) : 'Turn → ' + pn(AU.turn)); } AU.shotPot = AU.foul = false;
   }
   if (!AU.moving && AU.still > 15 && AU.pend === null && !handNow) AU.cnt = tr.filter(function(o){ return o.miss <= 3; }).length;
   AU.handNow = handNow; drawCue();
@@ -1142,7 +1171,7 @@ function drawCue(){
     });
   }
   $('autoScore').textContent = (AU.turn === 0 ? '▶ ' : '') + dn(0) + ' ' + D.s[0] + '  –  ' + D.s[1] + ' ' + dn(1) + (AU.turn === 1 ? ' ◀' : '');
-  $('autoStat').textContent = AU.fps + ' fps · ' + (!AU.cloth ? CUEMSG[0] : AU.cq.length < 4 ? CUEMSG[AU.cq.length + 1] : AU.balls.filter(function(b){ return b.miss < 3; }).length + ' balls · turn: ' + pn(AU.turn) + (AU.handNow ? ' · hand/cue in view' : ''));
+  $('autoStat').textContent = AU.fps + ' fps · ' + (!AU.cloth ? CUEMSG[0] : AU.cq.length < 4 ? CUEMSG[AU.cq.length + 1] : AU.balls.filter(function(b){ return b.miss < 3; }).length + ' balls · turn: ' + pn(AU.turn) + (/snooker/i.test(D.title) ? ' · on: ' + snOn() + ' · reds ' + AU.sn.reds : AU.grp[AU.turn] ? ' · you: ' + AU.grp[AU.turn] + 's' : '') + (AU.handNow ? ' · hand/cue in view' : ''));
 }
 
 /* ---------- languages (interface text; game names stay in English) ---------- */
