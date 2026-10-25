@@ -874,9 +874,9 @@ function openAuto(mode){
     AU.gen++; AU.on = true; AU.prev = null; AU.trk = []; AU.last = -1; AU.cool = 0; AU.pend = null; AU.pick = false; AU.ft = performance.now(); AU.fc = 0;
     AU.cv = document.createElement('canvas'); AU.cv.width = AU.W; AU.cv.height = AU.H; AU.cx = AU.cv.getContext('2d', {willReadFrequently:true});
     try{ if (navigator.wakeLock) navigator.wakeLock.request('screen').catch(function(){}); }catch(e){}
-    AU.balls = []; AU.turn = 0; AU.tl = AU.br = null; AU.moving = false; AU.still = 0; AU.cnt = 0; AU.shotPot = AU.foul = false;
+    AU.cq = []; AU.roi = null; AU.hand = 0; AU.ba = 12; AU.balls = []; AU.turn = 0; AU.moving = false; AU.still = 0; AU.cnt = 0; AU.shotPot = AU.foul = false;
     AU.cs = 0; AU.cal = null; AU.calPts = []; $('stayBtn').textContent = '⏱ Stay rule: ' + (AU.stay ? 'on' : 'off'); AU.help = AU.help || $('autoHelp').textContent; $('autoOv').dataset.mode = AU.mode;
-    $('autoHelp').textContent = AU.mode === 'cue' ? 'Hold your phone above the table (or high at an angle) so the whole cloth is in view. Tap the cloth to learn its color, then tap the top-left and bottom-right corners of the playing surface. A ball that vanishes into a pocket scores for the player whose turn it is. The turn passes when a shot pots nothing. Use ⇄ Turn to fix it.' : AU.help;
+    $('autoHelp').textContent = AU.mode === 'cue' ? 'Hold your phone above the table (or high at an angle) so the whole cloth is in view. Tap the cloth to learn its color, then tap the 4 corners of the playing surface (top-left, top-right, bottom-right, bottom-left). A ball that vanishes into a pocket scores for the player whose turn it is. The turn passes when a shot pots nothing. Use ⇄ Turn to fix it.' : AU.help;
     syncBall(); $('autoOv').classList.add('show'); autoNext(); beep(800, .1); if (AU.mode === 'tt') startCal();
   }).catch(function(){ toast('Allow camera access to use Auto-Score'); });
 }
@@ -1011,18 +1011,34 @@ function checkGoal(i){
 }
 /* ---------- Auto-Score (BETA): billiards / snooker / pool pot detection ---------- */
 var REF = {red:[[190,40,40],1], yellow:[[220,200,50],2], green:[[30,140,70],3], brown:[[140,90,40],4], blue:[[40,80,200],5], pink:[[235,130,160],6], black:[[25,25,25],7], white:[[235,235,235],0]};
+var CUEMSG = ['Tap the cloth to learn its color', 'Tap the TOP-LEFT corner of the playing surface', 'Tap the TOP-RIGHT corner', 'Tap the BOTTOM-RIGHT corner', 'Tap the BOTTOM-LEFT corner'];
+function pip(poly, x, y){ var ins = false, i, j; for (i = 0, j = poly.length - 1; i < poly.length; j = i++){ var a = poly[i], b = poly[j]; if ((a[1] > y) !== (b[1] > y) && x < (b[0] - a[0]) * (y - a[1]) / (b[1] - a[1]) + a[0]) ins = !ins; } return ins; }
+function cueBuildRoi(){
+  var W = AU.W, H = AU.H, cx = 0, cy = 0, x, y, list = [];
+  AU.cq.forEach(function(q){ cx += q[0] / 4; cy += q[1] / 4; });
+  var poly = AU.cq.map(function(q){ return [(cx + (q[0] - cx) * .96) * W, (cy + (q[1] - cy) * .96) * H]; });
+  AU.roi = new Uint8Array(W * H);
+  for (y = 1; y < H - 1; y++) for (x = 1; x < W - 1; x++) if (pip(poly, x, y)){ AU.roi[y * W + x] = 1; list.push(y * W + x); }
+  AU.roiIdx = Int32Array.from(list);
+}
+function cuePockets(){
+  var q = AU.cq.map(function(p){ return [p[0] * AU.W, p[1] * AU.H]; }), m = function(a, b){ return [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2]; };
+  var wd = (Math.hypot(q[1][0] - q[0][0], q[1][1] - q[0][1]) + Math.hypot(q[2][0] - q[3][0], q[2][1] - q[3][1])) / 2;
+  return {pk:[q[0], m(q[0], q[1]), q[1], q[3], m(q[3], q[2]), q[2]], R:Math.max(7, wd * .075)};
+}
 function cueTap(e, r){
   var fx = (e.clientX - r.left) / r.width, fy = (e.clientY - r.top) / r.height;
   if (!AU.cloth){
     var c = document.createElement('canvas'); c.width = 320; c.height = 240; var x = c.getContext('2d'); x.drawImage($('autoVid'), 0, 0, 320, 240);
     var d = x.getImageData(Math.max(0, Math.round(fx * 320) - 3), Math.max(0, Math.round(fy * 240) - 3), 7, 7).data, a = [0, 0, 0], k;
     for (k = 0; k < d.length; k += 4){ a[0] += d[k]; a[1] += d[k + 1]; a[2] += d[k + 2]; }
-    AU.cloth = a.map(function(v){ return Math.round(v / 49); }); save('acloth', AU.cloth); toast('Learned cloth color. Tap the top-left corner');
-  } else if (!AU.tl){ AU.tl = [fx, fy]; toast('Now tap the bottom-right corner'); }
-  else if (!AU.br){ AU.br = [fx, fy]; toast('Table set ✅'); }
+    AU.cloth = a.map(function(v){ return Math.round(v / 49); }); save('acloth', AU.cloth); toast(CUEMSG[1]);
+  } else if (AU.cq.length < 4){
+    AU.cq.push([fx, fy]); if (AU.cq.length === 4){ cueBuildRoi(); AU.balls = []; AU.cnt = 0; toast('Table set ✅'); buzz(30); } else toast(CUEMSG[AU.cq.length + 1]);
+  }
   beep(800, .08);
 }
-function cueReset(){ AU.cloth = null; AU.tl = AU.br = null; AU.balls = []; toast('Tap the cloth to start setup'); beep(450, .06); }
+function cueReset(){ AU.cloth = null; AU.cq = []; AU.roi = null; AU.balls = []; AU.cnt = 0; toast(CUEMSG[0]); beep(450, .06); }
 function cueTurn(){ AU.turn = 1 - AU.turn; beep(650, .06); toast('Turn → ' + pn(AU.turn)); }
 function cuePot(c){
   var snooker = /snooker/i.test(D.title), nm = 'ball', val = 1, k;
@@ -1034,57 +1050,99 @@ function cuePot(c){
 }
 function cueLoop(){
   var v = $('autoVid'); if (v.readyState < 2) return;
-  var W = AU.W, H = AU.H, t = performance.now(), i, x, y;
+  var W = AU.W, H = AU.H, t = performance.now(), i, k;
   AU.fc++; if (t - AU.ft > 500){ AU.fps = Math.round(AU.fc * 1000 / (t - AU.ft)); AU.fc = 0; AU.ft = t; }
-  if (!AU.cloth || !AU.tl || !AU.br){ drawCue(); return; }
-  AU.cx.drawImage(v, 0, 0, W, H); var d = AU.cx.getImageData(0, 0, W, H).data, cl = AU.cloth, thr = 7000 - AU.sens * 500, mask = AU.mask, seen = AU.seen, stack = AU.stack;
-  var x0 = Math.round(Math.min(AU.tl[0], AU.br[0]) * W), x1 = Math.round(Math.max(AU.tl[0], AU.br[0]) * W), y0 = Math.round(Math.min(AU.tl[1], AU.br[1]) * H), y1 = Math.round(Math.max(AU.tl[1], AU.br[1]) * H);
-  mask.fill(0); seen.fill(0);
-  for (y = y0; y < y1; y++) for (x = x0; x < x1; x++){ i = y * W + x; var dr = d[i * 4] - cl[0], dg = d[i * 4 + 1] - cl[1], db = d[i * 4 + 2] - cl[2]; if (dr * dr + dg * dg + db * db > thr) mask[i] = 1; }
-  var det = [];
-  for (y = y0; y < y1; y++) for (x = x0; x < x1; x++){
-    i = y * W + x; if (!mask[i] || seen[i]) continue;
+  if (!AU.cloth || AU.cq.length < 4 || !AU.roi){ drawCue(); return; }
+  AU.cx.drawImage(v, 0, 0, W, H);
+  var d = AU.cx.getImageData(0, 0, W, H).data, cl = AU.cloth, thr = 7000 - AU.sens * 500, mask = AU.mask, seen = AU.seen, stack = AU.stack, roi = AU.roi, ri = AU.roiIdx;
+  mask.fill(0); seen.fill(0); var sr = 0, sg = 0, sb = 0, sn = 0;
+  /* 1. segment everything that is not cloth; slowly re-learn the cloth color so lighting drift doesn't break it */
+  for (k = 0; k < ri.length; k++){
+    i = ri[k]; var dr = d[i * 4] - cl[0], dg = d[i * 4 + 1] - cl[1], db = d[i * 4 + 2] - cl[2];
+    if (dr * dr + dg * dg + db * db > thr) mask[i] = 1; else if (k % 6 === 0){ sr += d[i * 4]; sg += d[i * 4 + 1]; sb += d[i * 4 + 2]; sn++; }
+  }
+  if (sn > 50) AU.cloth = [cl[0] * .98 + sr / sn * .02, cl[1] * .98 + sg / sn * .02, cl[2] * .98 + sb / sn * .02];
+  /* 2. blobs -> single balls / touching clusters / hands & cue stick */
+  var dets = [], clusters = [], hand = false, ba = AU.ba;
+  for (k = 0; k < ri.length; k++){
+    i = ri[k]; if (!mask[i] || seen[i]) continue;
     var sp = 0, a = 0, sx = 0, sy = 0, cr = 0, cg = 0, cb = 0, ax = W, bx = 0, ay = H, by = 0; stack[sp++] = i; seen[i] = 1;
     while (sp){
       var q = stack[--sp], qx = q % W, qy = (q / W) | 0; a++; sx += qx; sy += qy; cr += d[q * 4]; cg += d[q * 4 + 1]; cb += d[q * 4 + 2];
       if (qx < ax) ax = qx; if (qx > bx) bx = qx; if (qy < ay) ay = qy; if (qy > by) by = qy;
-      if (qx > x0 && mask[q - 1] && !seen[q - 1]){ seen[q - 1] = 1; stack[sp++] = q - 1; }
-      if (qx < x1 - 1 && mask[q + 1] && !seen[q + 1]){ seen[q + 1] = 1; stack[sp++] = q + 1; }
-      if (qy > y0 && mask[q - W] && !seen[q - W]){ seen[q - W] = 1; stack[sp++] = q - W; }
-      if (qy < y1 - 1 && mask[q + W] && !seen[q + W]){ seen[q + W] = 1; stack[sp++] = q + W; }
+      if (roi[q - 1] && mask[q - 1] && !seen[q - 1]){ seen[q - 1] = 1; stack[sp++] = q - 1; }
+      if (roi[q + 1] && mask[q + 1] && !seen[q + 1]){ seen[q + 1] = 1; stack[sp++] = q + 1; }
+      if (roi[q - W] && mask[q - W] && !seen[q - W]){ seen[q - W] = 1; stack[sp++] = q - W; }
+      if (roi[q + W] && mask[q + W] && !seen[q + W]){ seen[q + W] = 1; stack[sp++] = q + W; }
     }
-    if (a < 3 || a > 45 || bx - ax > 9 || by - ay > 9) continue;
-    det.push({x:sx / a, y:sy / a, c:[cr / a, cg / a, cb / a]});
+    var bw = bx - ax + 1, bh = by - ay + 1;
+    if (a < 3) continue;
+    if (a > 4 * ba || bw > 24 || bh > 24){ hand = true; continue; }
+    if (a > 1.6 * ba){ clusters.push({x0:ax - 3, x1:bx + 3, y0:ay - 3, y1:by + 3}); continue; }
+    if (bw > 10 || bh > 10 || a / (bw * bh) < .5 || Math.max(bw / bh, bh / bw) > 1.9) continue;
+    dets.push({x:sx / a, y:sy / a, c:[cr / a, cg / a, cb / a], a:a});
   }
-  var bl = AU.balls, used = [], moved = false, mx = (x0 + x1) / 2, R = Math.max(8, (x1 - x0) * .09), pk = [[x0, y0], [mx, y0], [x1, y0], [x0, y1], [mx, y1], [x1, y1]];
-  bl.forEach(function(b){
-    var bj = -1, bd = 10; det.forEach(function(p, j){ if (used[j]) return; var dd = Math.hypot(p.x - b.x, p.y - b.y); if (dd < bd){ bd = dd; bj = j; } });
-    if (bj > -1){ used[bj] = 1; if (bd > .9) moved = true; var p = det[bj]; b.x = p.x; b.y = p.y; b.c = p.c; b.miss = 0; } else b.miss++;
+  if (dets.length) AU.ba = ba * .97 + (dets.reduce(function(s2, p){ return s2 + p.a; }, 0) / dets.length) * .03;
+  if (hand) AU.hand = t;
+  /* 3. track: predicted position + color identity, globally cheapest pairs first */
+  var tr = AU.balls, pairs = [], tU = [], dU = [], moved = false;
+  function cdist(a, b){ return Math.sqrt(Math.pow(a[0] - b[0], 2) + Math.pow(a[1] - b[1], 2) + Math.pow(a[2] - b[2], 2)); }
+  function bind(b, p){
+    var dx = p.x - b.x, dy = p.y - b.y; if (Math.hypot(dx, dy) > 1) moved = true;
+    b.vx = b.vx * .5 + dx * .5; b.vy = b.vy * .5 + dy * .5; b.x = p.x; b.y = p.y; b.c = [b.c[0] * .8 + p.c[0] * .2, b.c[1] * .8 + p.c[1] * .2, b.c[2] * .8 + p.c[2] * .2]; b.miss = 0; b.occ = false;
+  }
+  tr.forEach(function(b, bi){
+    var px = b.x + b.vx, py = b.y + b.vy, gate = 4 + Math.hypot(b.vx, b.vy) * 1.6;
+    dets.forEach(function(p, di){ var dd = Math.hypot(p.x - px, p.y - py); if (dd > gate) return; var cd = cdist(p.c, b.c); if (cd > 130) return; pairs.push([dd + cd / 40, bi, di]); });
   });
-  det.forEach(function(p, j){ if (!used[j]) bl.push({x:p.x, y:p.y, c:p.c, miss:0}); });
-  for (var k = bl.length - 1; k >= 0; k--){
-    var b = bl[k];
-    if (b.miss > 8 && det.length < AU.cnt && pk.some(function(c){ return Math.hypot(c[0] - b.x, c[1] - b.y) < R; })){ cuePot(b.c); AU.cnt = det.length; bl.splice(k, 1); }
-    else if (b.miss > 45) bl.splice(k, 1);
+  pairs.sort(function(a, b){ return a[0] - b[0]; });
+  pairs.forEach(function(q){ if (tU[q[1]] || dU[q[2]]) return; tU[q[1]] = dU[q[2]] = 1; bind(tr[q[1]], dets[q[2]]); });
+  dets.forEach(function(p, di){   /* re-acquire a fast ball that was lost for a few frames */
+    if (dU[di]) return; var best = -1, bd = 30;
+    tr.forEach(function(b, bi){ if (tU[bi] || b.miss < 1 || b.miss > 12) return; var dd = Math.hypot(p.x - b.x, p.y - b.y); if (dd < bd && cdist(p.c, b.c) < 110){ bd = dd; best = bi; } });
+    if (best > -1){ tU[best] = dU[di] = 1; bind(tr[best], p); }
+  });
+  tr.forEach(function(b, bi){   /* balls touching inside a cluster stay "present" instead of vanishing */
+    if (tU[bi]) return;
+    if (clusters.some(function(c){ return b.x >= c.x0 && b.x <= c.x1 && b.y >= c.y0 && b.y <= c.y1; })){ b.miss = 0; b.occ = true; b.vx *= .5; b.vy *= .5; } else b.miss++;
+  });
+  dets.forEach(function(p, di){ if (!dU[di]) tr.push({x:p.x, y:p.y, vx:0, vy:0, c:p.c, miss:0, occ:false}); });
+  /* 4. a pot = track lost near a pocket, heading toward it, no hand in view, and the ball count really dropped */
+  var pp = cuePockets(), pk = pp.pk, R = pp.R, handNow = t - AU.hand < 700;
+  for (k = tr.length - 1; k >= 0; k--){
+    var b = tr[k];
+    if (b.miss > 6 && !handNow){
+      var near = -1; pk.forEach(function(c, ci){ if (Math.hypot(c[0] - b.x, c[1] - b.y) < R * 1.35) near = ci; });
+      var alive = tr.filter(function(o){ return o !== b && o.miss <= 6; }).length;
+      if (near > -1 && alive < AU.cnt && (Math.hypot(b.vx, b.vy) < .3 || (pk[near][0] - b.x) * b.vx + (pk[near][1] - b.y) * b.vy > 0)){ cuePot(b.c); AU.cnt = alive; tr.splice(k, 1); continue; }
+    }
+    if (b.miss > 60) tr.splice(k, 1);
   }
+  /* 5. shot bookkeeping: motion -> rest, turn passes if nothing was potted */
   if (moved){ AU.moving = true; AU.still = 0; } else AU.still++;
   if (AU.moving && AU.still > 20){
     AU.moving = false; if (!AU.shotPot || AU.foul){ AU.turn = 1 - AU.turn; toast('Turn → ' + pn(AU.turn)); } AU.shotPot = AU.foul = false;
   }
-  if (!AU.moving && AU.still > 15 && AU.pend === null) AU.cnt = det.length;
-  drawCue();
+  if (!AU.moving && AU.still > 15 && AU.pend === null && !handNow) AU.cnt = tr.filter(function(o){ return o.miss <= 3; }).length;
+  AU.handNow = handNow; drawCue();
 }
 function drawCue(){
   var c = $('autoCv'), x = c.getContext('2d'), sx = c.width / AU.W, sy = c.height / AU.H;
   x.clearRect(0, 0, c.width, c.height);
-  if (AU.tl && AU.br){
-    var x0 = Math.min(AU.tl[0], AU.br[0]) * c.width, x1 = Math.max(AU.tl[0], AU.br[0]) * c.width, y0 = Math.min(AU.tl[1], AU.br[1]) * c.height, y1 = Math.max(AU.tl[1], AU.br[1]) * c.height, mx = (x0 + x1) / 2, rr = Math.max(8 * sx, (x1 - x0) * .09);
-    x.strokeStyle = '#0f0'; x.lineWidth = 1; x.setLineDash([6, 6]); x.strokeRect(x0, y0, x1 - x0, y1 - y0); x.setLineDash([]); x.strokeStyle = '#f90'; x.lineWidth = 2;
-    [[x0, y0], [mx, y0], [x1, y0], [x0, y1], [mx, y1], [x1, y1]].forEach(function(q){ x.beginPath(); x.arc(q[0], q[1], rr, 0, 7); x.stroke(); });
-    x.strokeStyle = '#fff'; x.lineWidth = 1.5; AU.balls.forEach(function(b){ if (b.miss < 3){ x.beginPath(); x.arc(b.x * sx, b.y * sy, 6, 0, 7); x.stroke(); } });
+  if (AU.cq.length){
+    x.strokeStyle = '#0af'; x.lineWidth = 2; x.beginPath(); AU.cq.forEach(function(q, i){ if (i) x.lineTo(q[0] * c.width, q[1] * c.height); else x.moveTo(q[0] * c.width, q[1] * c.height); }); if (AU.cq.length === 4) x.closePath(); x.stroke();
+    x.fillStyle = '#0af'; AU.cq.forEach(function(q){ x.beginPath(); x.arc(q[0] * c.width, q[1] * c.height, 5, 0, 7); x.fill(); });
+  }
+  if (AU.cq.length === 4){
+    var pp = cuePockets(); x.strokeStyle = '#f90'; x.lineWidth = 2;
+    pp.pk.forEach(function(q){ x.beginPath(); x.arc(q[0] * sx, q[1] * sy, pp.R * sx, 0, 7); x.stroke(); });
+    AU.balls.forEach(function(b){
+      if (b.miss > 3) return; x.strokeStyle = b.occ ? '#ff0' : '#fff'; x.lineWidth = 1.5; x.beginPath(); x.arc(b.x * sx, b.y * sy, 6, 0, 7); x.stroke();
+      x.strokeStyle = '#0f0'; x.beginPath(); x.moveTo(b.x * sx, b.y * sy); x.lineTo((b.x + b.vx * 4) * sx, (b.y + b.vy * 4) * sy); x.stroke();
+    });
   }
   $('autoScore').textContent = (AU.turn === 0 ? '▶ ' : '') + dn(0) + ' ' + D.s[0] + '  –  ' + D.s[1] + ' ' + dn(1) + (AU.turn === 1 ? ' ◀' : '');
-  $('autoStat').textContent = AU.fps + ' fps · ' + (!AU.cloth ? 'tap the cloth' : !AU.tl ? 'tap top-left corner' : !AU.br ? 'tap bottom-right corner' : AU.balls.filter(function(b){ return b.miss < 3; }).length + ' balls · turn: ' + pn(AU.turn));
+  $('autoStat').textContent = AU.fps + ' fps · ' + (!AU.cloth ? CUEMSG[0] : AU.cq.length < 4 ? CUEMSG[AU.cq.length + 1] : AU.balls.filter(function(b){ return b.miss < 3; }).length + ' balls · turn: ' + pn(AU.turn) + (AU.handNow ? ' · hand/cue in view' : ''));
 }
 
 /* ---------- languages (interface text; game names stay in English) ---------- */
