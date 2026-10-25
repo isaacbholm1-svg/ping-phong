@@ -291,6 +291,8 @@ header{box-shadow:0 2px 16px rgba(0,0,0,.25)}
     <div id="autoBan" onclick="event.stopPropagation();cancelPend()"></div>
   </div>
   <div class="autohelp">Prop your phone at the side of the table so the whole table is in view. Tap the picture to line up the dashed net line. When the ball bounces twice on one side, the other side gets the point. You get 2 seconds to cancel each call.</div>
+  <div class="autoctl" id="autoBall"><span>Ball:</span><button class="sm-btn" data-b="auto">Auto</button><button class="sm-btn" data-b="white">⚪ White</button><button class="sm-btn" data-b="orange">🟠 Orange</button><button class="sm-btn" data-b="custom">🎯 Learn</button></div>
+  <div class="autohelp" id="autoStat" style="padding:2px 12px"></div>
   <div class="autoctl">
     <button class="sm-btn" onclick="autoSwap()">⇄ Swap sides</button>
     <label>Sensitivity <input type="range" id="autoSens" min="1" max="10" value="5" oninput="AU.sens=+this.value"></label>
@@ -853,23 +855,41 @@ $('peopleBody').addEventListener('click', function(e){
 });
 
 /* ---------- Auto-Score (BETA): camera ball tracking ---------- */
-var AU = {on:false, stream:null, raf:0, prev:null, W:96, H:72, net:.5, swap:false, sens:5, trk:[], last:-1, lastT:0, cool:0, pend:null, pendT:0, cv:null, cx:null, bx:0, by:0, bt:-9999};
+var AU = {on:false, stream:null, raf:0, prev:null, W:96, H:72, net:.5, swap:false, sens:5, trk:[], last:-1, lastT:0, cool:0, pend:null, pendT:0, cv:null, cx:null, bx:0, by:0, bt:-9999, gen:0, ball:load('aball', 'auto'), lc:load('alc', [255, 140, 30]), pick:false, fps:0, fc:0, ft:0, mask:null, seen:null, stack:null};
 function toPlayer(side){ return AU.swap ? 1 - side : side; }
+function syncBall(){ document.querySelectorAll('#autoBall [data-b]').forEach(function(b){ b.classList.toggle('accent', b.dataset.b === AU.ball || (b.dataset.b === 'custom' && AU.pick)); }); }
+$('autoBall').addEventListener('click', function(e){
+  var b = e.target.closest('[data-b]'); if (!b) return; var m = b.dataset.b;
+  if (m === 'custom'){ AU.pick = true; toast('Hold the ball up, then tap it in the picture'); } else { AU.ball = m; AU.pick = false; save('aball', m); }
+  syncBall(); beep(650, .05);
+});
 function openAuto(){
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){ toast('Camera needs Safari over HTTPS'); return; }
   navigator.mediaDevices.getUserMedia({video:{facingMode:'environment', width:{ideal:640}, height:{ideal:480}, frameRate:{ideal:60}}, audio:false}).then(function(st){
     AU.stream = st; var v = $('autoVid'); v.muted = true; v.srcObject = st; v.play();
-    AU.on = true; AU.prev = null; AU.trk = []; AU.last = -1; AU.cool = 0; AU.pend = null;
+    var N = AU.W * AU.H; AU.mask = new Uint8Array(N); AU.seen = new Uint8Array(N); AU.stack = new Int32Array(N);
+    AU.gen++; AU.on = true; AU.prev = null; AU.trk = []; AU.last = -1; AU.cool = 0; AU.pend = null; AU.pick = false; AU.ft = performance.now(); AU.fc = 0;
     AU.cv = document.createElement('canvas'); AU.cv.width = AU.W; AU.cv.height = AU.H; AU.cx = AU.cv.getContext('2d', {willReadFrequently:true});
     try{ if (navigator.wakeLock) navigator.wakeLock.request('screen').catch(function(){}); }catch(e){}
-    $('autoOv').classList.add('show'); AU.raf = requestAnimationFrame(autoLoop); beep(800, .1);
+    syncBall(); $('autoOv').classList.add('show'); autoNext(); beep(800, .1);
   }).catch(function(){ toast('Allow camera access to use Auto-Score'); });
 }
 function closeAuto(){
-  AU.on = false; cancelAnimationFrame(AU.raf); clearTimeout(AU.pendT); AU.pend = null; $('autoBan').style.display = 'none';
+  AU.on = false; AU.gen++; cancelAnimationFrame(AU.raf); clearTimeout(AU.pendT); AU.pend = null; $('autoBan').style.display = 'none';
   if (AU.stream) AU.stream.getTracks().forEach(function(t){ t.stop(); }); AU.stream = null; $('autoOv').classList.remove('show');
 }
-function autoNet(e){ var r = $('autoStage').getBoundingClientRect(); AU.net = Math.min(.9, Math.max(.1, (e.clientX - r.left) / r.width)); beep(600, .04); }
+function autoNet(e){
+  var r = $('autoStage').getBoundingClientRect();
+  if (AU.pick){
+    var c = document.createElement('canvas'); c.width = 320; c.height = 240; var x = c.getContext('2d'); x.drawImage($('autoVid'), 0, 0, 320, 240);
+    var fx = Math.round((e.clientX - r.left) / r.width * 320), fy = Math.round((e.clientY - r.top) / r.height * 240), d = x.getImageData(Math.max(0, fx - 3), Math.max(0, fy - 3), 7, 7).data, px = [];
+    for (var i = 0; i < d.length; i += 4){ var mx = Math.max(d[i], d[i + 1], d[i + 2]), mn = Math.min(d[i], d[i + 1], d[i + 2]); px.push({c:[d[i], d[i + 1], d[i + 2]], s:(mx - mn) * 1.5 + (d[i] + d[i + 1] + d[i + 2]) / 6}); }
+    px.sort(function(a, b){ return b.s - a.s; }); var top5 = px.slice(0, 5);
+    AU.lc = [0, 1, 2].map(function(k){ return Math.round(top5.reduce(function(a, q){ return a + q.c[k]; }, 0) / 5); });
+    AU.ball = 'custom'; AU.pick = false; save('alc', AU.lc); save('aball', 'custom'); syncBall(); toast('🎯 Learned ball color'); beep(900, .1); return;
+  }
+  AU.net = Math.min(.9, Math.max(.1, (e.clientX - r.left) / r.width)); beep(600, .04);
+}
 function autoSwap(){ AU.swap = !AU.swap; AU.last = -1; beep(650, .06); toast('Left side → ' + pn(toPlayer(0))); }
 function cancelPend(){ clearTimeout(AU.pendT); AU.pend = null; AU.cool = performance.now() + 1500; $('autoBan').style.display = 'none'; beep(350, .1); }
 function queuePoint(pl){
@@ -877,54 +897,71 @@ function queuePoint(pl){
   AU.pendT = setTimeout(function(){ var q = AU.pend; AU.pend = null; $('autoBan').style.display = 'none'; if (q !== null && AU.on) dualPoint(q); }, 2200);
 }
 function detectBounce(t){
-  var k = AU.trk; if (k.length < 3 || t < AU.cool || AU.pend !== null || D.over || $('winOverlay').classList.contains('show')) return;
-  var a = k[k.length - 3], b = k[k.length - 2], c = k[k.length - 1], v1 = b.y - a.y, v2 = c.y - b.y;
-  if (v1 > .8 && v2 < -.8 && b.y > AU.H * .4){
-    var side = b.x < AU.net * AU.W ? 0 : 1; AU.bx = b.x; AU.by = b.y; AU.bt = t; beep(1200, .03);
+  var k = AU.trk, n = k.length; if (n < 5 || t < AU.cool || AU.pend !== null || D.over || $('winOverlay').classList.contains('show')) return;
+  var s = [], i; for (i = n - 4; i < n; i++) s.push(k[i].y - k[i - 1].y);
+  if ((s[0] + s[1]) / 2 > .7 && (s[2] + s[3]) / 2 < -.7 && k[n - 1].t - k[n - 5].t < 260){
+    var m = k[n - 3]; if (m.y < AU.H * .4 || t - AU.bt < 150) return;
+    var side = m.x < AU.net * AU.W ? 0 : 1; AU.bx = m.x; AU.by = m.y; AU.bt = t; beep(1200, .03);
     if (side === AU.last){ AU.last = -1; AU.cool = t + 1500; queuePoint(toPlayer(1 - side)); }
     else { AU.last = side; AU.lastT = t; }
   }
 }
+function autoNext(){
+  var v = $('autoVid'), g = AU.gen, f = function(){ if (g === AU.gen) autoLoop(); };
+  if (v.requestVideoFrameCallback) v.requestVideoFrameCallback(f); else AU.raf = requestAnimationFrame(f);
+}
+function isBall(r, g, b, l){
+  var m = AU.ball;
+  if (m === 'custom'){ var dr = r - AU.lc[0], dg = g - AU.lc[1], db = b - AU.lc[2]; return dr * dr + dg * dg + db * db < 5000; }
+  var mx = Math.max(r, g, b), mn = Math.min(r, g, b), white = l > 160 && mx - mn < 50, orange = r > 150 && r - b > 80 && g > 70 && r > g + 25;
+  return m === 'white' ? white : m === 'orange' ? orange : (white || orange);
+}
 function autoLoop(){
-  if (!AU.on) return; AU.raf = requestAnimationFrame(autoLoop);
+  if (!AU.on) return; autoNext();
   var v = $('autoVid'); if (v.readyState < 2) return;
-  var W = AU.W, H = AU.H, N = W * H; AU.cx.drawImage(v, 0, 0, W, H); var d = AU.cx.getImageData(0, 0, W, H).data, i;
-  if (!AU.prev){ AU.prev = new Uint8Array(N); for (i = 0; i < N; i++) AU.prev[i] = (d[i * 4] + d[i * 4 + 1] + d[i * 4 + 2]) / 3; return; }
-  var thr = 60 - AU.sens * 4, top = Math.floor(H * .25), mask = new Uint8Array(N);
+  var W = AU.W, H = AU.H, N = W * H, t = performance.now(), i;
+  AU.fc++; if (t - AU.ft > 500){ AU.fps = Math.round(AU.fc * 1000 / (t - AU.ft)); AU.fc = 0; AU.ft = t; }
+  AU.cx.drawImage(v, 0, 0, W, H); var d = AU.cx.getImageData(0, 0, W, H).data, pv = AU.prev;
+  if (!pv){ pv = AU.prev = new Uint8Array(N); for (i = 0; i < N; i++) pv[i] = (d[i * 4] + d[i * 4 + 1] + d[i * 4 + 2]) / 3; return; }
+  var thr = 60 - AU.sens * 4, top = Math.floor(H * .25), mask = AU.mask, seen = AU.seen, stack = AU.stack; mask.fill(0); seen.fill(0);
   for (i = top * W; i < N; i++){
-    var r = d[i * 4], g = d[i * 4 + 1], b = d[i * 4 + 2], l = (r + g + b) / 3, df = Math.abs(l - AU.prev[i]); AU.prev[i] = l;
-    if (df > thr && ((l > 150 && Math.abs(r - b) < 60) || (r > 150 && g > 80 && b < 110 && r - b > 70))) mask[i] = 1;
+    var j = i * 4, r = d[j], g = d[j + 1], b = d[j + 2], l = (r + g + b) / 3, df = l - pv[i]; pv[i] = l;
+    if ((df > thr || df < -thr) && isBall(r, g, b, l)) mask[i] = 1;
   }
-  var seen = new Uint8Array(N), stack = [], best = null, bs = 1e9, L = AU.trk[AU.trk.length - 1], t = performance.now();
+  var nT = AU.trk.length, L = AU.trk[nT - 1], pred = null, best = null, bs = 1e9;
+  if (nT >= 2){ var p0 = AU.trk[nT - 2], kk = Math.min(2, Math.max(.5, (t - L.t) / Math.max(1, L.t - p0.t))); pred = {x:L.x + (L.x - p0.x) * kk, y:L.y + (L.y - p0.y) * kk}; } else if (L) pred = L;
   for (i = top * W; i < N; i++){
     if (!mask[i] || seen[i]) continue;
-    stack.length = 0; stack.push(i); seen[i] = 1; var a = 0, sx = 0, sy = 0;
-    while (stack.length){
-      var q = stack.pop(), x = q % W, y = (q / W) | 0; a++; sx += x; sy += y;
-      if (x > 0 && mask[q - 1] && !seen[q - 1]){ seen[q - 1] = 1; stack.push(q - 1); }
-      if (x < W - 1 && mask[q + 1] && !seen[q + 1]){ seen[q + 1] = 1; stack.push(q + 1); }
-      if (y > 0 && mask[q - W] && !seen[q - W]){ seen[q - W] = 1; stack.push(q - W); }
-      if (y < H - 1 && mask[q + W] && !seen[q + W]){ seen[q + W] = 1; stack.push(q + W); }
+    var sp = 0, a = 0, sx = 0, sy = 0, x0 = W, x1 = 0, y0 = H, y1 = 0; stack[sp++] = i; seen[i] = 1;
+    while (sp){
+      var q = stack[--sp], x = q % W, y = (q / W) | 0; a++; sx += x; sy += y;
+      if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y;
+      if (x > 0 && mask[q - 1] && !seen[q - 1]){ seen[q - 1] = 1; stack[sp++] = q - 1; }
+      if (x < W - 1 && mask[q + 1] && !seen[q + 1]){ seen[q + 1] = 1; stack[sp++] = q + 1; }
+      if (y > 0 && mask[q - W] && !seen[q - W]){ seen[q - W] = 1; stack[sp++] = q - W; }
+      if (y < H - 1 && mask[q + W] && !seen[q + W]){ seen[q + W] = 1; stack[sp++] = q + W; }
     }
-    if (a < 2 || a > 60) continue;
-    var cx = sx / a, cy = sy / a, sc = L ? Math.hypot(cx - L.x, cy - L.y) : -a;
+    if (a < 2 || a > 60 || x1 - x0 > 9 || y1 - y0 > 9) continue;
+    var cx = sx / a, cy = sy / a, sc = pred ? Math.hypot(cx - pred.x, cy - pred.y) : -a;
+    if (pred && sc > 14) continue;
     if (sc < bs){ bs = sc; best = {x:cx, y:cy}; }
   }
   if (best){
-    if (L && (t - L.t > 150 || Math.hypot(best.x - L.x, best.y - L.y) > 25)) AU.trk = [];
-    AU.trk.push({x:best.x, y:best.y, t:t}); if (AU.trk.length > 4) AU.trk.shift(); detectBounce(t);
+    if (L && t - L.t > 150) AU.trk = [];
+    AU.trk.push({x:best.x, y:best.y, t:t}); if (AU.trk.length > 5) AU.trk.shift(); detectBounce(t);
   } else if (L && t - L.t > 150) AU.trk = [];
-  if (AU.last > -1 && t - AU.lastT > 3000) AU.last = -1;
+  if (AU.last > -1 && t - AU.lastT > 2500) AU.last = -1;
   drawAuto(best, t);
 }
 function drawAuto(b, t){
   var c = $('autoCv'), x = c.getContext('2d'), sx = c.width / AU.W, sy = c.height / AU.H;
   x.clearRect(0, 0, c.width, c.height); x.strokeStyle = '#fff'; x.lineWidth = 1; x.setLineDash([6, 6]); x.beginPath(); x.moveTo(AU.net * c.width, 0); x.lineTo(AU.net * c.width, c.height); x.stroke(); x.setLineDash([]);
-  x.fillStyle = 'rgba(255,200,0,.7)'; AU.trk.forEach(function(p){ x.fillRect(p.x * sx - 2, p.y * sy - 2, 4, 4); });
+  x.fillStyle = 'rgba(255,200,0,.7)'; AU.trk.forEach(function(q){ x.fillRect(q.x * sx - 2, q.y * sy - 2, 4, 4); });
   if (b){ x.strokeStyle = '#0f0'; x.lineWidth = 2; x.beginPath(); x.arc(b.x * sx, b.y * sy, 9, 0, 7); x.stroke(); }
   if (t - AU.bt < 700){ x.fillStyle = '#f33'; x.beginPath(); x.arc(AU.bx * sx, AU.by * sy, 10, 0, 7); x.fill(); }
   var l = toPlayer(0), rr = toPlayer(1);
   $('autoScore').textContent = '◀ ' + dn(l) + ' ' + D.s[l] + '  –  ' + D.s[rr] + ' ' + dn(rr) + ' ▶';
+  $('autoStat').textContent = AU.fps + ' fps · ' + (AU.trk.length ? 'tracking ball ✓' : 'searching…') + ' · ' + (AU.pick ? 'tap the ball' : AU.ball);
 }
 
 /* ---------- extra settings ---------- */
