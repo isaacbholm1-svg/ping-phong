@@ -297,8 +297,9 @@ header{box-shadow:0 2px 16px rgba(0,0,0,.25)}
   <div class="autohelp" id="autoHelp">Prop your phone at the side of the table so the whole table is in view. Then tap the 4 table corners (far-left, far-right, near-right, near-left) and the net line is set for you. When the ball bounces twice on one side, the other side gets the point. You get 2 seconds to cancel each call.</div>
   <div class="autoctl ttonly" id="autoBall"><span>Ball:</span><button class="sm-btn" data-b="auto">Auto</button><button class="sm-btn" data-b="white">⚪ White</button><button class="sm-btn" data-b="orange">🟠 Orange</button><button class="sm-btn" data-b="custom">🎯 Learn</button></div>
   <div class="autohelp" id="autoStat" style="padding:2px 12px"></div>
+  <div class="autohelp" id="autoReady" style="padding:0 12px 4px;font-weight:800;color:var(--text)"></div>
   <div class="autoctl">
-    <button class="sm-btn ttonly" id="recBtn" onclick="recToggle()">📸 Record data</button><button class="sm-btn ttonly" onclick="recExport()">⬇️ Export pictures</button><button class="sm-btn ttonly" id="mlBtn" onclick="toggleMl()">🧠 AI learning</button><button class="sm-btn ttonly" onclick="mlReset()">♻️ Reset AI</button><button class="sm-btn ttonly" id="micBtn" onclick="toggleMic()">🎤 Mic: off</button><button class="sm-btn ttonly" onclick="startTeach()">🎓 Teach ball</button><button class="sm-btn ttonly" onclick="startWiz()">📐 Calibrate</button><button class="sm-btn ttonly" id="stayBtn" onclick="toggleStay()">⏱ Stay rule</button><button class="sm-btn ttonly" onclick="autoSwap()">⇄ Swap sides</button>
+    <button class="sm-btn ttonly accent" onclick="bestMode()">⚡ Best settings</button><button class="sm-btn ttonly" id="recBtn" onclick="recToggle()">📸 Record data</button><button class="sm-btn ttonly" onclick="recExport()">⬇️ Export pictures</button><button class="sm-btn ttonly" id="mlBtn" onclick="toggleMl()">🧠 AI learning</button><button class="sm-btn ttonly" onclick="mlReset()">♻️ Reset AI</button><button class="sm-btn ttonly" id="micBtn" onclick="toggleMic()">🎤 Mic: off</button><button class="sm-btn ttonly" onclick="startTeach()">🎓 Teach ball</button><button class="sm-btn ttonly" onclick="startWiz()">📐 Calibrate</button><button class="sm-btn ttonly" id="stayBtn" onclick="toggleStay()">⏱ Stay rule</button><button class="sm-btn ttonly" onclick="autoSwap()">⇄ Swap sides</button>
     <button class="sm-btn" onclick="autoCam()">🔄 Camera</button><button class="sm-btn cueonly" id="pkBtn" onclick="pkEdit()">🕳 Move holes</button><label class="cueonly">Hole size <input type="range" id="pkSize" min="50" max="220" value="100" oninput="AU.pks = this.value / 100"></label>
     <button class="sm-btn cueonly red" onclick="cueFoul()">⚠️ Foul</button><button class="sm-btn cueonly" onclick="cueTurn()">⇄ Turn</button><button class="sm-btn cueonly" onclick="cueReset()">📐 Redo setup</button>
     <label>Sensitivity <input type="range" id="autoSens" min="1" max="10" value="5" oninput="AU.sens=+this.value"></label>
@@ -502,7 +503,7 @@ function drawDual(){
   $('deuce').classList.toggle('on', isDeuce()); if (PH.isHost) phSendState();
 }
 function snap(){ dHist.push(JSON.stringify({s:D.s.slice(), sets:D.sets.slice(), first:D.first, games:D.games})); if (dHist.length > 200) dHist.shift(); }
-function dualPoint(p, n){ if (PH.isHost && AU.on && !PH.inVote && nCam() >= 2){ phVote(p, n || 1, true, 'host'); return; } if (PH.up && !PH.isHost && PH.relay){ PH.up.send({t:'pt', p:p, n:n || 1, auto:!!AU.on}); return; }
+function dualPoint(p, n){ if (AU.on && !AU.aa && !PH.inVote && AU.skip) brainManual(p); if (PH.isHost && AU.on && !PH.inVote && nCam() >= 2){ phVote(p, n || 1, true, 'host'); return; } if (PH.up && !PH.isHost && PH.relay){ PH.up.send({t:'pt', p:p, n:n || 1, auto:!!AU.on}); return; }
   if (D.over) return;
   snap(); D.s[p] += (n || 1); fx(p, n); buzz(25); beep(p ? 560 : 760, .07);
   var a = D.s[p], b = D.s[1 - p];
@@ -862,7 +863,7 @@ $('peopleBody').addEventListener('click', function(e){
 });
 
 /* ---------- Auto-Score (BETA): camera ball tracking ---------- */
-var AUTOMODE = '', AU = {stay:load('astay', true), cal:null, cs:0, calPts:[], facing:'environment', mode:'tt', cloth:load('acloth', null), tl:null, br:null, balls:[], turn:0, moving:false, still:0, cnt:0, shotPot:false, foul:false, pendN:1, on:false, stream:null, raf:0, prev:null, W:96, H:72, net:.5, swap:false, sens:5, trk:[], last:-1, lastT:0, cool:0, pend:null, pendT:0, cv:null, cx:null, bx:0, by:0, bt:-9999, gen:0, ball:load('aball', 'auto'), lc:load('alc', [255, 140, 30]), lcr:load('alcr', 5000), tch:null, ta:load('ata', 0), wz:-1, netPts:null, floorY:null, bg:null, bgt:null, bgN:0, shake:0, rebg:false, mlOn:load('aml', true), cands:[], mic:load('amic', false), nclick:0, clicks:[], an:null, pick:false, fps:0, fc:0, ft:0, mask:null, seen:null, stack:null};
+var AUTOMODE = '', AU = {stay:load('astay', true), cal:null, cs:0, calPts:[], facing:'environment', mode:'tt', cloth:load('acloth', null), tl:null, br:null, balls:[], turn:0, moving:false, still:0, cnt:0, shotPot:false, foul:false, pendN:1, on:false, stream:null, raf:0, prev:null, W:96, H:72, net:.5, swap:false, sens:5, trk:[], last:-1, lastT:0, cool:0, pend:null, pendT:0, cv:null, cx:null, bx:0, by:0, bt:-9999, gen:0, ball:load('aball', 'auto'), lc:load('alc', [255, 140, 30]), lcr:load('alcr', 5000), tch:null, ta:load('ata', 0), wz:-1, netPts:null, floorY:null, bg:null, bgt:null, bgN:0, shake:0, rebg:false, mlOn:load('aml', true), cands:[], mic:load('amic', true), nclick:0, clicks:[], an:null, pick:false, fps:0, fc:0, ft:0, mask:null, seen:null, stack:null};
 function toPlayer(side){ return AU.swap ? 1 - side : side; }
 function syncBall(){ document.querySelectorAll('#autoBall [data-b]').forEach(function(b){ b.classList.toggle('accent', b.dataset.b === AU.ball || (b.dataset.b === 'custom' && AU.pick)); }); }
 $('autoBall').addEventListener('click', function(e){
@@ -905,22 +906,26 @@ function autoNet(e){
   AU.net = Math.min(.9, Math.max(.1, (e.clientX - r.left) / r.width)); beep(600, .04);
 }
 function autoSwap(){ AU.swap = !AU.swap; AU.last = -1; beep(650, .06); toast('Left side → ' + pn(toPlayer(0))); }
-function cancelPend(){ clearTimeout(AU.pendT); AU.pend = null; AU.cool = performance.now() + 1500; $('autoBan').style.display = 'none'; beep(350, .1); }
-function queuePoint(pl, n){
-  AU.pend = pl; AU.pendN = n || 1; showBan(); buzz(20);
-  AU.pendT = setTimeout(function(){ var q = AU.pend, k = AU.pendN; AU.pend = null; $('autoBan').style.display = 'none'; if (q !== null && AU.on) dualPoint(q, k); }, 2200);
+function cancelPend(){ if (AU.prop){ brainLearn(AU.prop, 0); AU.prop = null; } clearTimeout(AU.pendT); AU.pend = null; AU.cool = performance.now() + 1500; $('autoBan').style.display = 'none'; beep(350, .1); }
+function queuePoint(pl, n, win){
+  AU.pend = pl; AU.pendN = n || 1; AU.unsure = (win || 2200) > 3000; AU.prop = AU.nextProp || null; AU.nextProp = null; showBan(); buzz(20);
+  AU.pendT = setTimeout(function(){
+    var q = AU.pend, k = AU.pendN; AU.pend = null; $('autoBan').style.display = 'none';
+    if (AU.prop){ brainLearn(AU.prop, 1); AU.prop = null; }   /* nobody cancelled it: the brain learns it was right */
+    if (q !== null && AU.on){ AU.aa = true; try{ dualPoint(q, k); } finally { AU.aa = false; } }
+  }, win || 2200);
 }
-function showBan(){ $('autoBan').textContent = '🤖 ' + pn(AU.pend) + ' +' + AU.pendN + '  (tap to cancel)'; $('autoBan').style.display = 'block'; }
+function showBan(){ $('autoBan').textContent = '🤖 ' + pn(AU.pend) + ' +' + AU.pendN + (AU.unsure ? '  ❓ unsure – tap to cancel' : '  (tap to cancel)'); $('autoBan').style.display = 'block'; }
 function potEvent(pl, n){ if (AU.pend === pl){ AU.pendN += n; showBan(); } else if (AU.pend === null) queuePoint(pl, n); else dualPoint(pl, n); }
 function detectBounce(t){
   var k = AU.trk, n = k.length; if (n < 5 || AU.tch || t < AU.cool || AU.pend !== null || D.over || $('winOverlay').classList.contains('show')) return;
   var s = [], i; for (i = n - 4; i < n; i++) s.push(k[i].y - k[i - 1].y);
   if ((s[0] + s[1]) / 2 > .9 && (s[2] + s[3]) / 2 < -.9 && restitutionOk(s) && k[n - 1].t - k[n - 5].t < 260){
-    var m = bouncePt(k, n); if (AU.floorY != null && !onTable(m) && m.y >= AU.floorY * AU.H - 4 && AU.last > -1 && AU.pend === null){ var fs = AU.last; AU.last = -1; AU.cool = t + 1500; toast('⬇️ Ball hit the floor'); queuePoint(toPlayer(1 - fs)); return; }
+    var m = bouncePt(k, n); if (AU.floorY != null && !onTable(m) && m.y >= AU.floorY * AU.H - 4 && AU.last > -1 && AU.pend === null){ var fs = AU.last; AU.last = -1; AU.cool = t + 1500; toast('⬇️ Ball hit the floor'); brainPropose('floor', toPlayer(1 - fs), t); return; }
     if (!onTable(m) || t - AU.bt < 150) return;
-    if (AU.an && !heard(t)) return;   /* mic is on: a real table bounce must also make a click */
+    if (AU.an && !AU.micIgnore && !heard(t)){ if (++AU.nb >= 4 && !AU.nclick){ AU.micIgnore = true; toast('🎤 Mic heard nothing – ignoring it'); } return; }   /* mic is on: a real table bounce must also make a click */
     var side = sideOf(m); AU.bx = m.x; AU.by = m.y; AU.bt = t; beep(1200, .03);
-    if (side === AU.last){ AU.last = -1; AU.cool = t + 1500; queuePoint(toPlayer(1 - side)); }
+    if (side === AU.last) brainPropose('double', toPlayer(1 - side), t);
     else { AU.last = side; AU.lastT = t; }
   }
 }
@@ -968,14 +973,14 @@ function autoLoop(){
     AU.cands.push({f:f});
     var sc = (pred ? Math.hypot(cx - pred.x, cy - pred.y) : -a) - pm * 4;
     if (pred && sc > 18) continue;
-    if (sc < bs){ bs = sc; best = {x:cx, y:cy, a:a, f:f, bw:bw, bh:bh, c:[cr / a, cg / a, cb / a]}; }
+    if (sc < bs){ bs = sc; best = {x:cx, y:cy, a:a, f:f, pm:pm, bw:bw, bh:bh, c:[cr / a, cg / a, cb / a]}; }
   }
   if (best){
     if (L && t - L.t > 150) AU.trk = [];
-    AU.trk.push({x:best.x, y:best.y, t:t}); if (AU.trk.length > 5) AU.trk.shift(); detectBounce(t); netCheck(best, t); if (AU.last > -1 && sideOf(best) !== AU.last) AU.lastT = t;
+    AU.trk.push({x:best.x, y:best.y, t:t}); if (AU.trk.length > 5) AU.trk.shift(); AU.lastPm = (ML.ready && AU.mlOn) ? best.pm : null; detectBounce(t); netCheck(best, t); if (AU.last > -1 && sideOf(best) !== AU.last) AU.lastT = t;
   } else if (L && t - L.t > 150) AU.trk = [];
   if (AU.last > -1 && t - AU.lastT > (AU.stay ? 1800 : 2500)){
-    if (AU.stay && AU.pend === null && t > AU.cool && !D.over){ var sd = AU.last; AU.last = -1; AU.cool = t + 1500; queuePoint(toPlayer(1 - sd)); } else AU.last = -1;
+    if (AU.stay && AU.pend === null && t > AU.cool && !D.over){ var sd = AU.last; AU.last = -1; AU.cool = t + 1500; brainPropose('stay', toPlayer(1 - sd), t); } else AU.last = -1;
   }
   micPoll(t); recStep(best, t); mlLabel(best); mlTick(t); teachStep(best, t); drawAuto(best, t);
 }
@@ -991,7 +996,8 @@ function drawAuto(b, t){
   if (t - AU.bt < 700){ x.fillStyle = '#f33'; x.beginPath(); x.arc(AU.bx * sx, AU.by * sy, 10, 0, 7); x.fill(); }
   var l = toPlayer(0), rr = toPlayer(1);
   $('autoScore').textContent = '◀ ' + dn(l) + ' ' + D.s[l] + '  –  ' + D.s[rr] + ' ' + dn(rr) + ' ▶';
-  $('autoStat').textContent = AU.fps + ' fps · ' + (AU.trk.length ? 'tracking ball ✓' : 'searching…') + ' · ' + (AU.wz >= 0 && AU.wz < 8 ? WIZ[AU.wz] : AU.tch ? (AU.tch.p ? 'teaching… ' + Math.max(0, 6 - Math.round((performance.now() - AU.tch.t0) / 1000)) + 's · ' + AU.tch.s.length + ' samples' : 'tap the ball') : AU.cs ? CALMSG[AU.cs - 1] : AU.pick ? 'tap the ball' : AU.ball) + (AU.an ? ' · 🎤 ' + (AU.nclick || 0) + ' hits' : '') + (AU.mlOn ? ' · 🧠 ' + ML.n + '/' + CAP + (ML.ready ? ' ✓' : '') : '') + (REC.on ? ' · 📸 ' + REC.items.length : '');
+  $('autoStat').textContent = AU.fps + ' fps · ' + (AU.trk.length ? 'tracking ball ✓' : 'searching…') + ' · ' + (AU.wz >= 0 && AU.wz < 8 ? WIZ[AU.wz] : AU.tch ? (AU.tch.p ? 'teaching… ' + Math.max(0, 6 - Math.round((performance.now() - AU.tch.t0) / 1000)) + 's · ' + AU.tch.s.length + ' samples' : 'tap the ball') : AU.cs ? CALMSG[AU.cs - 1] : AU.pick ? 'tap the ball' : AU.ball) + (AU.an ? ' · 🎤 ' + (AU.nclick || 0) + ' hits' : '') + (AU.mlOn ? ' · 🧠 ' + ML.n + '/' + CAP + (ML.ready ? ' ✓' : '') : '') + (RECD.on ? ' · 📸 ' + RECD.items.length : '') + ' · ⚙️ brain ' + BR.n + ' lessons';
+  var rs = readyScore(); $('autoReady').textContent = 'Readiness ' + rs[0] + '% · ' + rs[1];
 }
 
 var CALMSG = ['Tap the FAR-LEFT corner of the table', 'Tap the FAR-RIGHT corner', 'Tap the NEAR-RIGHT corner', 'Tap the NEAR-LEFT corner'];
@@ -1001,7 +1007,7 @@ function micOn(){
   navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false, noiseSuppression:false, autoGainControl:false}}).then(function(st){
     AU.mst = st; var ac = AU.ac || (AU.ac = new (window.AudioContext || window.webkitAudioContext)()); if (ac.state === 'suspended') ac.resume();
     var src = ac.createMediaStreamSource(st), hp = ac.createBiquadFilter(), an = ac.createAnalyser(); hp.type = 'highpass'; hp.frequency.value = 2000; an.fftSize = 2048;
-    src.connect(hp); hp.connect(an); AU.an = an; AU.abuf = new Float32Array(2048); AU.avg = .01; AU.clicks = []; AU.nclick = 0; AU.lastClick = 0; toast('🎤 Listening for bounces');
+    src.connect(hp); hp.connect(an); AU.an = an; AU.abuf = new Float32Array(2048); AU.avg = .01; AU.clicks = []; AU.nclick = 0; AU.nb = 0; AU.micIgnore = false; AU.lastClick = 0; toast('🎤 Listening for bounces');
   }).catch(function(){ AU.mic = false; AU.an = null; $('micBtn').textContent = '🎤 Mic: off'; toast('Microphone blocked – allow it in Safari settings'); });
 }
 function micStop(){ if (AU.mst) AU.mst.getTracks().forEach(function(t){ t.stop(); }); AU.mst = null; AU.an = null; }
@@ -1083,17 +1089,17 @@ function phVote(p, n, auto, from){
   setTimeout(function(){ if (PH.votes && PH.votes.some(function(v){ return v.from === from && v.p === p; })){ PH.votes = PH.votes.filter(function(v){ return !(v.from === from && v.p === p); }); toast('Only one phone saw a point – tap +1 if it was real'); } }, 900);
 }
 /* ---------- recorder: saves pictures with the ball box already drawn (YOLO format) for training a bigger model ---------- */
-var REC = {on:false, items:[], f:0};
+var RECD = {on:false, items:[], f:0};
 function smooth(){ var k = AU.trk, n = k.length; if (n < 5) return false; var a = k[n - 1], b = k[n - 3], c = k[n - 5]; return Math.abs(a.x - 2 * b.x + c.x) <= 4 && Math.abs(a.y - 2 * b.y + c.y) <= 4; }
-function recToggle(){ REC.on = !REC.on; $('recBtn').textContent = REC.on ? '⏹ Stop recording' : '📸 Record data'; toast(REC.on ? 'Recording – just play (max 400 pictures)' : 'Stopped. Tap ⬇️ Export pictures'); beep(600, .05); }
+function recToggle(){ RECD.on = !RECD.on; $('recBtn').textContent = RECD.on ? '⏹ Stop recording' : '📸 Record data'; toast(RECD.on ? 'Recording – just play (max 400 pictures)' : 'Stopped. Tap ⬇️ Export pictures'); beep(600, .05); }
 function recStep(best, t){
-  if (!REC.on || AU.tch || AU.wz >= 0 || REC.items.length >= 400) return; REC.f++;
+  if (!RECD.on || AU.tch || AU.wz >= 0 || RECD.items.length >= 400) return; RECD.f++;
   var v = $('autoVid'); if (!v.videoWidth) return;
-  var pos = best && smooth(), neg = !best && !AU.trk.length && REC.f % 45 === 0;
-  if (!((pos && REC.f % 6 === 0) || neg)) return;
+  var pos = best && smooth(), neg = !best && !AU.trk.length && RECD.f % 45 === 0;
+  if (!((pos && RECD.f % 6 === 0) || neg)) return;
   var W2 = Math.min(1280, v.videoWidth), H2 = Math.round(W2 * v.videoHeight / v.videoWidth), c = document.createElement('canvas'); c.width = W2; c.height = H2; c.getContext('2d').drawImage(v, 0, 0, W2, H2);
   var lab = pos ? '0 ' + (best.x / AU.W).toFixed(5) + ' ' + (best.y / AU.H).toFixed(5) + ' ' + Math.min(1, (best.bw + 2) / AU.W).toFixed(5) + ' ' + Math.min(1, (best.bh + 2) / AU.H).toFixed(5) + '\n' : '';
-  c.toBlob(function(b){ if (b) REC.items.push({b:b, l:lab}); }, 'image/jpeg', .72);
+  c.toBlob(function(b){ if (b) RECD.items.push({b:b, l:lab}); }, 'image/jpeg', .72);
 }
 function crc32(u8){
   var t = crc32.t || (crc32.t = (function(){ var a = [], c, n, k; for (n = 0; n < 256; n++){ c = n; for (k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; a[n] = c >>> 0; } return a; })()), c = 0xFFFFFFFF;
@@ -1112,12 +1118,35 @@ function zipStore(files){
   return new Blob(parts.concat(cd, [e.buffer]), {type:'application/zip'});
 }
 function recExport(){
-  if (!REC.items.length){ toast('Nothing recorded yet – tap 📸 and play first'); return; } toast('Building zip…');
+  if (!RECD.items.length){ toast('Nothing recorded yet – tap 📸 and play first'); return; } toast('Building zip…');
   var enc = new TextEncoder(), files = [{name:'data.yaml', data:enc.encode('path: .\ntrain: images/train\nval: images/train\nnames:\n  0: pingpong\n')}];
-  Promise.all(REC.items.map(function(it, i){ return it.b.arrayBuffer().then(function(ab){ var id = String(i + 1).padStart(4, '0'); files.push({name:'images/train/img_' + id + '.jpg', data:new Uint8Array(ab)}); files.push({name:'labels/train/img_' + id + '.txt', data:enc.encode(it.l)}); }); })).then(function(){
-    var a = document.createElement('a'); a.href = URL.createObjectURL(zipStore(files)); a.download = 'gamepro-pingpong-dataset.zip'; document.body.appendChild(a); a.click(); setTimeout(function(){ a.remove(); }, 2000); toast('✅ Saved ' + REC.items.length + ' pictures');
+  Promise.all(RECD.items.map(function(it, i){ return it.b.arrayBuffer().then(function(ab){ var id = String(i + 1).padStart(4, '0'); files.push({name:'images/train/img_' + id + '.jpg', data:new Uint8Array(ab)}); files.push({name:'labels/train/img_' + id + '.txt', data:enc.encode(it.l)}); }); })).then(function(){
+    var a = document.createElement('a'); a.href = URL.createObjectURL(zipStore(files)); a.download = 'gamepro-pingpong-dataset.zip'; document.body.appendChild(a); a.click(); setTimeout(function(){ a.remove(); }, 2000); toast('✅ Saved ' + RECD.items.length + ' pictures');
   });
 }
+/* ---------- THE BRAIN: weighs every piece of evidence for each possible point, then learns from your cancels and corrections ---------- */
+var BR = load('abrain', null) || {b:{double:.8, floor:.3, stay:-.4}, w:[1.2, 1, .6, .6], n:0, cx:0};
+function brainEval(kind, t){
+  var x = [AU.an && !AU.micIgnore ? (heard(t) ? 1 : -1) : 0,        /* did the microphone hear the bounce? */
+           AU.lastPm == null ? 0 : (AU.lastPm - .5) * 2,             /* does the learned model think it was our ball? */
+           smooth() ? 1 : 0,                                          /* was the flight smooth and physical? */
+           (readyScore()[0] / 100 - .5) * 2];                         /* how well calibrated is everything? */
+  var z = BR.b[kind] || 0; for (var j = 0; j < 4; j++) z += BR.w[j] * x[j];
+  return {p:1 / (1 + Math.exp(-z)), x:x, kind:kind};
+}
+function brainPropose(kind, pl, t){
+  var e = brainEval(kind, t); AU.last = -1; AU.cool = t + 1500; BR.cx++;
+  if (e.p >= .6){ AU.nextProp = e; queuePoint(pl, 1, 2200); }                 /* confident: normal 2 s cancel window */
+  else if (e.p >= .3){ AU.nextProp = e; queuePoint(pl, 1, 4500); }           /* unsure: longer window, marked unsure */
+  else { AU.skip = {x:e.x, kind:kind, pl:pl, t:performance.now()}; toast('🧠 skipped an unsure call (' + Math.round(e.p * 100) + '%) – tap +1 if it was real'); }
+}
+function brainLearn(e, y){
+  var z = BR.b[e.kind] || 0, j; for (j = 0; j < 4; j++) z += BR.w[j] * e.x[j];
+  var g = (y - 1 / (1 + Math.exp(-z))) * .15; BR.b[e.kind] = Math.max(-3, Math.min(3, (BR.b[e.kind] || 0) + g));
+  for (j = 0; j < 4; j++) BR.w[j] = Math.max(-3, Math.min(3, BR.w[j] + g * e.x[j]));
+  BR.n++; save('abrain', BR);
+}
+function brainManual(p){ var k = AU.skip; AU.skip = null; if (k && k.pl === p && performance.now() - k.t < 6000){ brainLearn(k, 1); toast('🧠 learned: that call was real'); } }
 /* ---- full calibration wizard: background, table, net, floor, ball ---- */
 var WIZ = ['STEP 1/9 – Clear the table and step out of the picture. Learning the background…', 'STEP 2/9 – Tap the FAR-LEFT corner of the table', 'STEP 3/9 – Tap the FAR-RIGHT corner', 'STEP 4/9 – Tap the NEAR-RIGHT corner', 'STEP 5/9 – Tap the NEAR-LEFT corner', 'STEP 6/9 – Tap the TOP of the net at the LEFT post', 'STEP 7/9 – Tap the TOP of the net at the RIGHT post', 'STEP 8/9 – Tap the FLOOR just below the table', 'STEP 9/9 – Teach the ball'];
 function startWiz(){
@@ -1180,12 +1209,51 @@ function calTap(e, r){
 }
 function toggleStay(){ AU.stay = !AU.stay; save('astay', AU.stay); $('stayBtn').textContent = '⏱ Stay rule: ' + (AU.stay ? 'on' : 'off'); toast(AU.stay ? 'Ball stuck on one side → point' : 'Stay rule off'); beep(600, .05); }
 function netLine(){
+  var hh = getH(); if (hh){ var a = applyH(AU.hi, .5, 0), b = applyH(AU.hi, .5, 1); return [a[0], a[1], b[0], b[1]]; }
   if (!AU.cal) return [AU.net, 0, AU.net, 1]; var c = AU.cal;
   return [(c[0][0] + c[1][0]) / 2, (c[0][1] + c[1][1]) / 2, (c[3][0] + c[2][0]) / 2, (c[3][1] + c[2][1]) / 2];
 }
 function sideOf(m){
+  var hh = getH(); if (hh) return applyH(hh, m.x / AU.W, m.y / AU.H)[0] < .5 ? 0 : 1;   /* true table coordinates: perspective-correct halfway line */
   var n = netLine(), x1 = n[0] * AU.W, y1 = n[1] * AU.H, x2 = n[2] * AU.W, y2 = n[3] * AU.H;
   return (x2 - x1) * (m.y - y1) - (y2 - y1) * (m.x - x1) > 0 ? 0 : 1;
+}
+/* homography: maps the 4 tapped corners of the table to a flat rectangle so a bounce gets a real position (u along the table, v across) */
+function solveH(src, dst){
+  var A = [], i, j, k;
+  for (i = 0; i < 4; i++){ var x = src[i][0], y = src[i][1], u = dst[i][0], v = dst[i][1]; A.push([x, y, 1, 0, 0, 0, -u * x, -u * y, u]); A.push([0, 0, 0, x, y, 1, -v * x, -v * y, v]); }
+  for (i = 0; i < 8; i++){
+    var p = i; for (j = i + 1; j < 8; j++) if (Math.abs(A[j][i]) > Math.abs(A[p][i])) p = j;
+    var t = A[i]; A[i] = A[p]; A[p] = t; if (Math.abs(A[i][i]) < 1e-9) return null;
+    for (j = 0; j < 8; j++){ if (j === i) continue; var f = A[j][i] / A[i][i]; for (k = i; k < 9; k++) A[j][k] -= f * A[i][k]; }
+  }
+  var h = []; for (i = 0; i < 8; i++) h.push(A[i][8] / A[i][i]); h.push(1); return h;
+}
+function applyH(h, x, y){ var w = h[6] * x + h[7] * y + h[8]; return [(h[0] * x + h[1] * y + h[2]) / w, (h[3] * x + h[4] * y + h[5]) / w]; }
+function getH(){
+  if (!AU.cal || AU.cal.length < 4) return null;
+  if (AU.hcal !== AU.cal){ AU.hcal = AU.cal; var U = [[0, 0], [1, 0], [1, 1], [0, 1]]; AU.hm = solveH(AU.cal, U); AU.hi = AU.hm ? solveH(U, AU.cal) : null; if (!AU.hi) AU.hm = null; }
+  return AU.hm;
+}
+/* how ready is Auto-Score right now, and what is the one thing to fix next */
+function readyScore(){
+  var pts = 0, tip = '';
+  function chk(ok, w, msg){ if (ok) pts += w; else if (!tip) tip = msg; }
+  chk(AU.wz === -1, 15, 'finish the calibration steps');
+  chk(!!AU.bg, 15, 'learn the background (clear the table)');
+  chk(!!AU.cal, 15, 'tap the 4 table corners');
+  chk(AU.netPts && AU.floorY != null, 10, 'tap the net posts and the floor');
+  chk(AU.ball === 'custom' && AU.ta > 0, 15, 'tap 🎓 Teach ball');
+  chk(AU.fps >= 20, 10, 'low camera speed – close other apps or add light');
+  chk(!AU.mic || (AU.an && AU.nclick > 0 && !AU.micIgnore), 10, 'mic has not heard a bounce yet');
+  chk(ML.ready || !AU.mlOn, 10, 'AI is still learning – keep playing');
+  return [pts, tip || 'all set ✅'];
+}
+function bestMode(){
+  AU.stay = true; save('astay', true); AU.mlOn = true; save('aml', true); AU.sens = 5; $('autoSens').value = 5; $('stayBtn').textContent = '⏱ Stay rule: on';
+  if (!AU.mic){ AU.mic = true; save('amic', true); $('micBtn').textContent = '🎤 Mic: on'; micOn(); }
+  if (AU.wz === -1 && !(AU.cal && AU.bg)) startWiz();
+  toast('⚡ Best settings on: mic, AI learning, stay rule'); beep(900, .1); buzz(30);
 }
 function onTable(m){
   if (!AU.cal) return m.y > AU.H * .4;
