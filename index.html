@@ -148,6 +148,9 @@ header{box-shadow:0 2px 16px rgba(0,0,0,.25)}
 .autopanel{flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;padding-bottom:8px}
 .autobar{flex:none;display:flex;gap:8px;padding:8px 10px;background:var(--card);border-top:1px solid var(--border)}
 .autobar button{flex:1;padding:12px 6px;font-size:.9rem;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.autoov.portrait #autoStage{width:min(100%, calc(60vh * var(--ar)));width:min(100%, calc(60dvh * var(--ar)))}
+.rothint{display:none;margin:8px 12px 0;padding:10px 12px;border-radius:12px;background:var(--yellow);color:#000;font-weight:800;font-size:.85rem;text-align:center}
+.autoov.portrait .rothint{display:block}
 .automore{margin:4px 12px;border:1px solid var(--border);border-radius:12px}
 .automore summary{padding:10px 14px;font-weight:800;font-size:.85rem;cursor:pointer;list-style:none;text-align:center}
 .automore summary::-webkit-details-marker{display:none}
@@ -309,6 +312,7 @@ header{box-shadow:0 2px 16px rgba(0,0,0,.25)}
     <div id="autoBan" onclick="event.stopPropagation();cancelPend()"></div>
   </div>
   <div class="autopanel">
+  <div class="rothint">↻ Turn your phone sideways – the whole table fits, the picture is 3× bigger and tracking works much better</div>
   <div class="autohelp" id="autoHelp">Prop your phone at the side of the table so the whole table is in view. Then tap the 4 table corners (far-left, far-right, near-right, near-left) and the net line is set for you. When the ball bounces twice on one side, the other side gets the point. You get 2 seconds to cancel each call.</div>
   <div class="autoctl ttonly" id="autoBall"><span>Ball:</span><button class="sm-btn" data-b="auto">Auto</button><button class="sm-btn" data-b="white">⚪ White</button><button class="sm-btn" data-b="orange">🟠 Orange</button><button class="sm-btn" data-b="custom">🎯 Learn</button></div>
   <div class="autohelp" id="autoStat" style="padding:2px 12px"></div>
@@ -321,7 +325,7 @@ header{box-shadow:0 2px 16px rgba(0,0,0,.25)}
   <details class="automore"><summary>⚙️ More settings</summary>
   <div class="autoctl">
     <button class="sm-btn ttonly accent" onclick="bestMode()">⚡ Best settings</button><button class="sm-btn ttonly" onclick="startTeach()">🎓 Teach ball</button><button class="sm-btn ttonly" id="stayBtn" onclick="toggleStay()">⏱ Stay rule</button>
-    <button class="sm-btn ttonly" id="mlBtn" onclick="toggleMl()">🧠 AI learning</button><button class="sm-btn ttonly" onclick="mlReset()">♻️ Reset AI</button>
+    <button class="sm-btn ttonly" id="nnFile" onclick="nnPick()">🤖 Model file: Pro</button><button class="sm-btn ttonly" id="mlBtn" onclick="toggleMl()">🧠 AI learning</button><button class="sm-btn ttonly" onclick="mlReset()">♻️ Reset AI</button>
     <button class="sm-btn ttonly" id="recBtn" onclick="recToggle()">📸 Record data</button><button class="sm-btn ttonly" onclick="recExport()">⬇️ Export pictures</button>
     <label>Sensitivity <input type="range" id="autoSens" min="1" max="10" value="5" oninput="AU.sens=+this.value"></label>
   </div>
@@ -897,6 +901,21 @@ $('autoBall').addEventListener('click', function(e){
   if (m === 'custom'){ AU.pick = true; toast('Hold the ball up, then tap it in the picture'); } else { AU.ball = m; AU.pick = false; save('aball', m); }
   syncBall(); beep(650, .05);
 });
+/* the tracker grid follows the camera's real shape (the long side is always 128, or 320 for pool), so the ball stays round and taps land where you tap.
+   Held upright, an iPhone sends a tall portrait picture – that is what made the view thin. */
+function auDims(){
+  var v = $('autoVid'), ar = (v.videoWidth && v.videoHeight) ? v.videoWidth / v.videoHeight : 4 / 3, L = AU.mode === 'cue' ? 320 : 128;
+  $('autoOv').style.setProperty('--ar', ar.toFixed(4)); $('autoOv').classList.toggle('portrait', ar < 1); AU.ar = ar;
+  AU.W = ar >= 1 ? L : Math.round(L * ar); AU.H = ar >= 1 ? Math.round(L / ar) : L;
+  var N = AU.W * AU.H; AU.mask = new Uint8Array(N); AU.seen = new Uint8Array(N); AU.stack = new Int32Array(N);
+  AU.cv = document.createElement('canvas'); AU.cv.width = AU.W; AU.cv.height = AU.H; AU.cx = AU.cv.getContext('2d', {willReadFrequently:true});
+  AU.prev = null; AU.bg = null; AU.bs = null; AU.trk = []; AU.fh = [];
+}
+/* phone turned while Auto-Score is running: the picture changed shape, so the grid and the calibration must be redone */
+$('autoVid').addEventListener('resize', function(){
+  var v = $('autoVid'); if (!AU.on || !v.videoWidth || !AU.ar || Math.abs(v.videoWidth / v.videoHeight - AU.ar) < .02) return;
+  auDims(); if (AU.mode === 'cue'){ AU.cal = null; AU.calPts = []; cueReset(); } else { startWiz(); toast('📱 Phone turned – calibrating again'); }
+});
 function openAuto(mode){
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){ toast('Camera needs Safari over HTTPS'); return; }
   /* ping pong: 1080p at up to 120 fps (iPhone 15 Pro can do it) – a fast ball moves half as far between frames and the neural model gets a sharp picture. Pool only needs 60. */
@@ -906,12 +925,8 @@ function openAuto(mode){
     var ts = st.getVideoTracks()[0], gs = ts && ts.getSettings ? ts.getSettings() : {}; AU.camFps = Math.round(gs.frameRate || 0);
     return new Promise(function(res){ if (v.videoWidth) res(st); else { v.onloadedmetadata = function(){ v.onloadedmetadata = null; res(st); }; setTimeout(function(){ res(st); }, 1500); } });
   }).then(function(st){
-    var v = $('autoVid'), ar = (v.videoWidth && v.videoHeight) ? v.videoWidth / v.videoHeight : 4 / 3;
-    /* the tracker grid follows the camera's real shape, so the ball stays round and taps land where you tap */
-    $('autoOv').style.setProperty('--ar', ar.toFixed(4));
-    AU.mode = mode || 'tt'; AU.W = AU.mode === 'cue' ? 320 : 128; AU.H = Math.round(AU.W / ar); var N = AU.W * AU.H; AU.mask = new Uint8Array(N); AU.seen = new Uint8Array(N); AU.stack = new Int32Array(N);
-    AU.gen++; AU.on = true; AU.prev = null; AU.trk = []; AU.fh = []; AU.lastAuto = null; NN.det = null; NN.okT = 0; AU.last = -1; AU.cool = 0; AU.pend = null; AU.pick = false; AU.ft = performance.now(); AU.fc = 0;
-    AU.cv = document.createElement('canvas'); AU.cv.width = AU.W; AU.cv.height = AU.H; AU.cx = AU.cv.getContext('2d', {willReadFrequently:true});
+    AU.mode = mode || 'tt'; auDims();
+    AU.gen++; AU.on = true; AU.lastAuto = null; NN.det = null; NN.okT = 0; AU.last = -1; AU.cool = 0; AU.pend = null; AU.pick = false; AU.ft = performance.now(); AU.fc = 0;
     try{ if (navigator.wakeLock) navigator.wakeLock.request('screen').catch(function(){}); }catch(e){}
     AU.cq = []; AU.roi = null; AU.pkn = null; AU.pks = 1; AU.pedit = false; $('pkSize').value = 100; $('pkBtn').textContent = '🕳 Move holes'; AU.pt = 0; AU.hand = 0; AU.ba = 12; AU.sn = {ph:'red', reds:15, ti:0}; AU.grp = [null, null]; AU.gp = {solid:0, stripe:0}; AU.balls = []; AU.turn = 0; AU.moving = false; AU.still = 0; AU.cnt = 0; AU.shotPot = AU.foul = false;
     AU.cs = 0; AU.cal = null; AU.calPts = []; $('stayBtn').textContent = '⏱ Stay rule: ' + (AU.stay ? 'on' : 'off'); AU.help = AU.help || $('autoHelp').textContent; $('autoOv').dataset.mode = AU.mode;
@@ -1045,7 +1060,7 @@ function drawAuto(b, t){
   var p0 = '◀ +1 ' + dn(l), p1 = dn(rr) + ' +1 ▶'; if ($('auP0').textContent !== p0){ $('auP0').textContent = p0; $('auP1').textContent = p1; }
   if (NN.det && t - NN.det.t < 300){ x.strokeStyle = '#f0f'; x.lineWidth = 2; x.strokeRect(NN.det.x * sx - 8, NN.det.y * sy - 8, 16, 16); }   /* pink box = what your trained model sees */
   $('autoStat').textContent = AU.fps + ' fps' + (AU.camFps ? ' (camera ' + AU.camFps + ')' : '') + ' · ' + (AU.trk.length ? 'tracking ball ✓' : 'searching…') + ' · ' + (AU.wz >= 0 && AU.wz < 8 ? WIZ[AU.wz] : AU.tch ? (AU.tch.p ? 'teaching… ' + Math.max(0, 6 - Math.round((performance.now() - AU.tch.t0) / 1000)) + 's · ' + AU.tch.s.length + ' samples' : 'tap the ball') : AU.cs ? CALMSG[AU.cs - 1] : AU.pick ? 'tap the ball' : AU.ball) + (AU.an ? ' · 🎤 ' + (AU.nclick || 0) + ' hits' : '') + (AU.mlOn ? ' · 🧠 ' + ML.n + '/' + CAP + (ML.ready ? ' ✓' : '') : '') + (RECD.on ? ' · 📸 ' + RECD.items.length : '') + ' · ⚙️ brain ' + BR.n + ' lessons';
-  var rs = readyScore(); $('autoReady').textContent = 'Readiness ' + rs[0] + '% · ' + rs[1] + (NN.on ? ' · 🤖 ' + (NN.sess ? NN.ep + ' ' + NN.ms + ' ms · ' + (t - NN.okT < 1500 ? 'confirms ball ✓' : 'sees ' + NN.seen) + (NN.ms > 250 ? ' (slow – teaching only)' : '') : 'loading…') : '');
+  var rs = readyScore(); $('autoReady').textContent = 'Readiness ' + rs[0] + '% · ' + rs[1] + (NN.on ? ' · 🤖 ' + (NN.sess ? NN.got + ' · ' + NN.ep + ' ' + NN.ms + ' ms · ' + (t - NN.okT < 1500 ? 'confirms ball ✓' : 'sees ' + NN.seen) + (NN.ms > 250 ? ' (slow – teaching only)' : '') : 'loading…') : '');
 }
 
 var CALMSG = ['Tap the FAR-LEFT corner of the table', 'Tap the FAR-RIGHT corner', 'Tap the NEAR-RIGHT corner', 'Tap the NEAR-LEFT corner'];
@@ -1201,20 +1216,39 @@ function brainManual(p){ var k = AU.skip; AU.skip = null; if (k && k.pl === p &&
 /* ---------- YOUR TRAINED NEURAL MODEL (pingpong.onnx), run on the phone with onnxruntime-web ---------- */
 /* WebGPU runs it on the phone's graphics chip (Safari 26+): about 20x faster than the CPU. The old WebGL path could not run this model at all (opset 18 Split). */
 var ORT_URL = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.20.1/dist/';
-var NN = {on:load('ann', true), run:false, sess:null, S:1280, ms:0, det:null, used:null, seen:0, ep:'', okT:0, f:null};
-function nnBtnSync(){ $('nnBtn').textContent = '🤖 Model: ' + (NN.on ? 'on' : 'off'); $('nnBtn').classList.toggle('accent', NN.on); }
+/* two model files: pingpong.onnx = the one you trained on your own table; pingpong_pro.onnx = the bigger YOLO11s trained on OpenTTGames match video */
+var NN = {on:load('ann', true), run:false, sess:null, S:1280, ms:0, det:null, used:null, seen:0, ep:'', okT:0, f:null, file:load('anf', 'pingpong_pro.onnx'), got:''};
+function nnBtnSync(){ $('nnBtn').textContent = '🤖 Model: ' + (NN.on ? 'on' : 'off'); $('nnBtn').classList.toggle('accent', NN.on); $('nnFile').textContent = '🤖 Model file: ' + (NN.file === 'pingpong_pro.onnx' ? 'Pro' : 'Mine'); }
+function nnPick(){ NN.file = NN.file === 'pingpong_pro.onnx' ? 'pingpong.onnx' : 'pingpong_pro.onnx'; save('anf', NN.file); NN.sess = null; NN.f = null; NN.det = null; nnBtnSync(); toast('🤖 Switching to ' + (NN.file === 'pingpong_pro.onnx' ? 'Pro model' : 'your model') + '…'); if (AU.on && NN.on && !NN.run) nnStart(); beep(600, .05); }
 function toggleNn(){ NN.on = !NN.on; save('ann', NN.on); nnBtnSync(); toast(NN.on ? '🤖 Neural model on' : '🤖 Neural model off'); if (NN.on && AU.on) nnStart(); beep(600, .05); }
+/* GitHub's upload page takes files up to 25 MB, so a big model can be uploaded as name.onnx.part1, .part2 … – they are joined back together here */
+function nnBytes(file){
+  return fetch(file).then(function(r){
+    if (r.ok) return r.arrayBuffer();
+    var parts = [], k = 1, next = function(){
+      return fetch(file + '.part' + k).then(function(r2){
+        if (r2.ok) return r2.arrayBuffer().then(function(b){ parts.push(b); k++; return next(); });
+        if (!parts.length) throw new Error('missing ' + file);
+        var u = new Uint8Array(parts.reduce(function(a, p){ return a + p.byteLength; }, 0)), o = 0;
+        parts.forEach(function(p){ u.set(new Uint8Array(p), o); o += p.byteLength; }); return u.buffer;
+      });
+    };
+    return next();
+  });
+}
 function nnLoad(){
   if (NN.sess) return Promise.resolve();
   return new Promise(function(res, rej){
     if (window.ort) return res(); var sc = document.createElement('script'); sc.src = ORT_URL + 'ort.webgpu.min.js'; sc.onload = res; sc.onerror = rej; document.head.appendChild(sc);
   }).then(function(){
     ort.env.wasm.wasmPaths = ORT_URL; ort.env.wasm.numThreads = 1;
-    return fetch('pingpong640.onnx', {method:'HEAD'}).then(function(r){ if (r.ok){ NN.S = 640; return 'pingpong640.onnx'; } NN.S = 1280; return 'pingpong.onnx'; }).catch(function(){ NN.S = 1280; return 'pingpong.onnx'; });
-  }).then(function(file){
-    var mk = function(ep){ return ort.InferenceSession.create(file, {executionProviders:[ep]}).then(function(s){ NN.ep = ep === 'webgpu' ? 'GPU' : 'CPU'; return s; }); };
+    /* chosen file, or your own model if the Pro one has not been uploaded */
+    return nnBytes(NN.file).then(function(b){ return {f:NN.file, b:b}; }).catch(function(){ return nnBytes('pingpong.onnx').then(function(b){ return {f:'pingpong.onnx', b:b}; }); });
+  }).then(function(m){
+    var file = m.f; NN.S = /640/.test(file) ? 640 : 1280; NN.got = file === 'pingpong_pro.onnx' ? 'Pro' : 'Mine';
+    var mk = function(ep){ return ort.InferenceSession.create(new Uint8Array(m.b), {executionProviders:[ep]}).then(function(s){ NN.ep = ep === 'webgpu' ? 'GPU' : 'CPU'; return s; }); };
     return (navigator.gpu ? mk('webgpu') : Promise.reject()).catch(function(){ return mk('wasm'); });
-  }).then(function(sess){ NN.sess = sess; NN.f = null; toast('🤖 Neural model loaded (' + NN.S + ' px, ' + NN.ep + ')'); });
+  }).then(function(sess){ NN.sess = sess; NN.f = null; toast('🤖 ' + (NN.got === 'Pro' ? 'Pro' : 'Your') + ' model loaded (' + NN.S + ' px, ' + NN.ep + ')'); });
 }
 function nnStart(){
   if (NN.run) return; NN.run = true;
@@ -1228,6 +1262,7 @@ function nnDecode(dt, N, px, py, sc, vw, vh){
 }
 function nnTick(){
   if (!AU.on || !NN.on || AU.mode !== 'tt'){ NN.run = false; return; }
+  if (!NN.sess){ NN.run = false; nnStart(); return; }   /* model file was switched: load the new one */
   var v = $('autoVid'); if (v.readyState < 2 || !v.videoWidth){ setTimeout(nnTick, 100); return; }
   var S = NN.S, cv = NN.cv || (NN.cv = document.createElement('canvas')), vw = v.videoWidth, vh = v.videoHeight, sc = S / Math.max(vw, vh), w = Math.round(vw * sc), h = Math.round(vh * sc), px = Math.floor((S - w) / 2), py = Math.floor((S - h) / 2), t0 = performance.now(), n = S * S, i, j, y, xx;
   /* same letterbox as in training: grey bars are filled once, then only the picture area is copied each time */
@@ -1238,7 +1273,7 @@ function nnTick(){
   NN.sess.run({images:new ort.Tensor('float32', f, [1, 3, S, S])}).then(function(out){
     var o = out[Object.keys(out)[0]], r2 = nnDecode(o.data, o.dims[2], px, py, sc, vw, vh), now = performance.now(); NN.ms = Math.round(now - t0);
     if (r2){ r2.t = t0; NN.det = r2; NN.seen++; nnTeach(r2); } else NN.det = null;
-    setTimeout(nnTick, Math.max(0, 40 - (now - t0)));   /* at most ~25 checks a second, so the 120 fps tracker keeps the main thread */
+    setTimeout(nnTick, Math.max(0, (NN.ms < 30 ? 20 : 40) - (now - t0)));   /* at most 25 checks a second (50 when the GPU is very fast), so the 120 fps tracker keeps the main thread */
   }).catch(function(){ NN.on = false; NN.run = false; nnBtnSync(); toast('🤖 Model failed to run – turned off'); });
 }
 /* The model is slower than the camera, so its answer is about a frame from a moment ago. Find that frame in the history:
