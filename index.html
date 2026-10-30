@@ -61,11 +61,11 @@ button:active{filter:brightness(.8);transform:scale(.97)}
 .dstatus{text-align:center;padding:8px;background:var(--card);font-size:.8rem;color:var(--sub);flex:none}
 .dual{display:flex;flex:1;min-height:0}
 .zone{flex:1;display:flex;flex-direction:column;justify-content:space-between;align-items:center;padding:18px 8px;cursor:pointer}
-.z1{background:color-mix(in srgb,var(--green) 12%,transparent);border-right:1px solid var(--border)}
-.z2{background:color-mix(in srgb,var(--accent) 12%,transparent)}
+.z1{--sc:var(--p1c,var(--green));background:color-mix(in srgb,var(--sc) 12%,transparent);border-right:1px solid var(--border)}
+.z2{--sc:var(--p2c,var(--accent));background:color-mix(in srgb,var(--sc) 12%,transparent)}
 .zname{font-weight:800;color:var(--sub);padding:6px 10px;border-radius:8px;font-size:.95rem;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .zscore{font-size:6rem;font-weight:900;line-height:1;font-variant-numeric:tabular-nums}
-.z1 .zscore{color:var(--green)}.z2 .zscore{color:var(--accent)}
+.zone .zscore{color:var(--sc)}
 .badge{font-size:.8rem;padding:5px 12px;border-radius:20px;background:var(--yellow);color:#000;font-weight:800;visibility:hidden}
 .badge.on{visibility:visible}
 .deuce{text-align:center;font-weight:900;letter-spacing:2px;color:var(--yellow);background:var(--card);padding:6px;font-size:.85rem;flex:none;display:none}
@@ -137,6 +137,52 @@ header{box-shadow:0 2px 16px rgba(0,0,0,.25)}
 .dialog h2{animation:bounce 1s ease-in-out infinite}
 .brand{background:linear-gradient(90deg,var(--accent),var(--purple),var(--accent));background-size:200% auto;-webkit-background-clip:text;background-clip:text;animation:shimmer 4s linear infinite}
 .big.shake{animation:shake .45s ease infinite}
+/* ---------- personalize: backgrounds ---------- */
+body[data-bg]{background:transparent}
+body[data-bg]::before{content:"";position:fixed;inset:-20%;z-index:-1;pointer-events:none}
+body[data-bg=gradient]::before{background:radial-gradient(circle at 15% 20%,color-mix(in srgb,var(--accent) 22%,transparent),transparent 45%),radial-gradient(circle at 85% 80%,color-mix(in srgb,var(--purple) 22%,transparent),transparent 45%),var(--bg)}
+body[data-bg=aurora]::before{background:radial-gradient(ellipse at 20% 30%,color-mix(in srgb,var(--accent) 35%,transparent),transparent 50%),radial-gradient(ellipse at 80% 20%,color-mix(in srgb,var(--purple) 35%,transparent),transparent 50%),radial-gradient(ellipse at 50% 90%,color-mix(in srgb,var(--green) 25%,transparent),transparent 55%),var(--bg);animation:aurora 16s ease-in-out infinite alternate}
+body[data-bg=stars]::before{background:radial-gradient(1.5px 1.5px at 20px 30px,var(--text),transparent),radial-gradient(1px 1px at 90px 120px,var(--text),transparent),radial-gradient(2px 2px at 160px 60px,var(--accent),transparent),radial-gradient(1px 1px at 230px 170px,var(--text),transparent),radial-gradient(1.5px 1.5px at 60px 200px,var(--purple),transparent),var(--bg);background-size:260px 240px;animation:drift 60s linear infinite,twinkle 3s ease-in-out infinite alternate}
+body[data-bg=grid]::before{background:linear-gradient(color-mix(in srgb,var(--accent) 14%,transparent) 1px,transparent 1px),linear-gradient(90deg,color-mix(in srgb,var(--accent) 14%,transparent) 1px,transparent 1px),var(--bg);background-size:34px 34px;animation:gridmove 4s linear infinite}
+@keyframes gridmove{to{background-position:34px 34px,34px 34px,0 0}}
+body.noanim::before{animation:none!important}
+@keyframes aurora{from{transform:rotate(0) scale(1)}to{transform:rotate(12deg) scale(1.15)}}
+@keyframes drift{to{background-position:260px 240px,260px 240px,260px 240px,260px 240px,260px 240px,0 0}}
+@keyframes twinkle{from{opacity:.65}to{opacity:1}}
+/* card styles */
+body[data-card=glass] .gcard,body[data-card=glass] .row,body[data-card=glass] .box{background:color-mix(in srgb,var(--card) 55%,transparent);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px)}
+body[data-card=flat] .gcard{background:var(--card)}body[data-card=flat] .gcard::before{display:none}
+body[data-card=neon] .gcard{background:color-mix(in srgb,var(--bg) 85%,transparent);border-color:var(--accent);box-shadow:0 0 10px var(--glow),inset 0 0 12px var(--glow)}
+/* score styles */
+body[data-score=digital] .zscore{font-family:ui-monospace,"SF Mono",Menlo,"Courier New",monospace;font-weight:700;letter-spacing:-2px}
+body[data-score=outline] .zscore{color:transparent;-webkit-text-stroke:3px var(--sc);text-shadow:none}
+body[data-score=neon] .zscore{color:#fff;text-shadow:0 0 6px var(--sc),0 0 18px var(--sc),0 0 42px var(--sc)}
+/* point animations */
+.zscore.pa-flip{animation:pflip .45s ease}.zscore.pa-bounce{animation:pbounce .6s cubic-bezier(.3,1.6,.5,1)}.zscore.pa-zoom{animation:pzoom .4s ease-out}.zscore.pa-shake{animation:shake .35s ease}
+@keyframes pflip{0%{transform:perspective(400px) rotateX(0)}50%{transform:perspective(400px) rotateX(90deg)}100%{transform:perspective(400px) rotateX(0)}}
+@keyframes pbounce{0%{transform:translateY(0)}30%{transform:translateY(-34px) scale(1.12)}100%{transform:none}}
+@keyframes pzoom{from{transform:scale(2.2);opacity:0;filter:blur(6px)}to{transform:none;opacity:1;filter:none}}
+/* streak flame + game point banner */
+.streak{position:absolute;top:56px;left:50%;transform:translateX(-50%);font-weight:900;font-size:.85rem;padding:4px 10px;border-radius:14px;background:color-mix(in srgb,var(--red) 85%,#000);color:#fff;white-space:nowrap;display:none;animation:flicker .9s ease-in-out infinite alternate}
+.streak.on{display:block}
+@keyframes flicker{from{box-shadow:0 0 6px var(--red),0 0 0 var(--yellow);transform:translateX(-50%) scale(1)}to{box-shadow:0 0 16px var(--red),0 -4px 16px var(--yellow);transform:translateX(-50%) scale(1.06)}}
+.gpt{text-align:center;font-weight:900;letter-spacing:1px;padding:6px;font-size:.85rem;flex:none;display:none;color:#000;background:linear-gradient(90deg,var(--yellow),color-mix(in srgb,var(--yellow) 60%,#fff),var(--yellow));background-size:200% auto;animation:shimmer 1.6s linear infinite,gpulse 1s ease-in-out infinite}
+.gpt.on{display:block}.gpt.mp{background-image:linear-gradient(90deg,var(--red),var(--yellow),var(--red));color:#fff}
+@keyframes gpulse{50%{letter-spacing:3px}}
+/* greeting */
+.hello{padding:12px 14px 0;font-size:1.25rem;font-weight:900;display:none}.hello.on{display:block;animation:slideIn .5s ease}
+.hello small{display:block;font-size:.78rem;font-weight:600;color:var(--sub);margin-top:2px}
+.wave{display:inline-block;transform-origin:70% 70%;animation:wave 2.2s ease-in-out infinite}
+@keyframes wave{0%,60%,100%{transform:rotate(0)}10%,30%{transform:rotate(14deg)}20%{transform:rotate(-8deg)}40%{transform:rotate(-4deg)}50%{transform:rotate(10deg)}}
+/* emoji rain win celebration */
+.rain{position:fixed;top:-60px;font-size:2rem;z-index:350;pointer-events:none;animation:fall linear forwards}
+@keyframes fall{to{transform:translateY(115vh) rotate(540deg)}}
+/* tap ripple on buttons */
+.btn-icon,.sm-btn,.ctrl-btn,.tab{position:relative;overflow:hidden}
+.ripple{position:absolute;border-radius:50%;background:currentColor;opacity:.25;transform:scale(0);animation:ripple .55s ease-out forwards;pointer-events:none}
+@keyframes ripple{to{transform:scale(1);opacity:0}}
+.pcol{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.pcol input[type=color]{width:34px;height:34px;border:2px solid var(--border);border-radius:50%;padding:0;background:none}
 .noanim *,.noanim *::before{animation:none!important}
 @media(prefers-reduced-motion:reduce){*{animation:none!important}}
 .autoov{position:fixed;inset:0;z-index:250;background:var(--bg);display:none;flex-direction:column;overflow:hidden;--ar:1.3333;padding:0 env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}
@@ -177,6 +223,7 @@ header{box-shadow:0 2px 16px rgba(0,0,0,.25)}
 </header>
 
 <section id="screen-menu" class="screen active">
+  <div class="hello" id="hello"></div>
   <div class="pad" style="padding-bottom:6px"><input id="search" class="search" type="search" placeholder="🔍 Search games, sports & tools…" autocomplete="off" autocorrect="off" oninput="renderGrid()"></div>
   <div class="tabs" id="tabs"></div>
   <div class="count" id="count"></div>
@@ -186,17 +233,18 @@ header{box-shadow:0 2px 16px rgba(0,0,0,.25)}
 <section id="screen-dual" class="screen">
   <div class="dstatus" id="dstatus">Match</div>
   <div class="deuce" id="deuce">⚡ DEUCE – WIN BY 2 ⚡</div>
+  <div class="gpt" id="gpt"></div>
   <div id="autoRow" style="display:none;padding:8px 14px;background:var(--card)"><button class="ctrl-btn accent" style="width:100%" onclick="openAuto(AUTOMODE)">🤖 Auto-Score (BETA)</button></div>
   <div class="dual">
     <div class="zone z1" onclick="dualPoint(0)">
       <div class="zname" id="dname0" onclick="event.stopPropagation();dualRename(0)">PLAYER 1</div>
-      <div id="dsets0" style="font-size:.9rem">Sets: 0</div>
+      <div id="dsets0" style="font-size:.9rem">Sets: 0</div><div class="streak" id="dstk0"></div>
       <div class="zscore" id="dscore0">0</div>
       <div class="badge" id="dserve0">🏓 SERVE</div>
     </div>
     <div class="zone z2" onclick="dualPoint(1)">
       <div class="zname" id="dname1" onclick="event.stopPropagation();dualRename(1)">PLAYER 2</div>
-      <div id="dsets1" style="font-size:.9rem">Sets: 0</div>
+      <div id="dsets1" style="font-size:.9rem">Sets: 0</div><div class="streak" id="dstk1"></div>
       <div class="zscore" id="dscore1">0</div>
       <div class="badge" id="dserve1">🏓 SERVE</div>
     </div>
@@ -346,7 +394,7 @@ function esc(s){ return String(s).replace(/[&<>"']/g, function(c){ return {'&':'
 function $(id){ return document.getElementById(id); }
 
 /* ---------- themes ---------- */
-var S = Object.assign({sound:true, haptic:true, font:0, vol:.12, confetti:true, anim:true, size:16, cols:2, acc:'', p1:'', p2:''}, load('settings', {}));
+var S = Object.assign({sound:true, haptic:true, font:0, vol:.12, confetti:true, anim:true, size:16, cols:2, acc:'', p1:'', p2:'', me:'', c1:'', c2:'', bgfx:'plain', card:'gradientcard', sstyle:'bold', pfx:'pop', win:'confetti', snd:'classic'}, load('settings', {}));
 var CUSTOM = load('custom', []), HIST = load('hist', []), stTab = 'lb';
 var FAV = load('fav', []), REC = load('rec', []);
 var THEMES = [['dark','Dark Mode'],['cyberpunk','Cyberpunk Neon'],['matrix','Matrix Green'],['sunset','Sunset Glow'],['oled','OLED True Black'],['light','Clean Light'],['ocean','Deep Ocean'],['forest','Forest Lime'],['royal','Royal Purple'],['candy','Candy Pop'],['coffee','Coffee House']];
@@ -368,13 +416,16 @@ function toast(msg){ var t = $('toast'); t.textContent = msg; t.classList.add('s
 
 /* ---------- audio + haptics (context created on first gesture for iOS) ---------- */
 var actx = null;
+/* sound packs: wave shape, pitch and loudness for every beep in the app */
+var SND = {classic:{t:'sine', m:1, v:1}, arcade:{t:'square', m:1.1, v:.55}, soft:{t:'triangle', m:.7, v:.9}, retro:{t:'sawtooth', m:.85, v:.45}, bubble:{t:'sine', m:1.6, v:.8, slide:1}};
 function beep(freq, dur, type){ if (!S.sound) return;
   try{
     if (!actx) actx = new (window.AudioContext || window.webkitAudioContext)();
     if (actx.state === 'suspended') actx.resume();
-    var o = actx.createOscillator(), g = actx.createGain(), d = dur || 0.08, now = actx.currentTime;
-    o.type = type || 'sine'; o.frequency.value = freq || 600;
-    g.gain.setValueAtTime(0.0001, now); g.gain.exponentialRampToValueAtTime(Math.max(.001, S.vol), now + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, now + d);
+    var pk = SND[S.snd] || SND.classic, o = actx.createOscillator(), g = actx.createGain(), d = dur || 0.08, now = actx.currentTime, f = (freq || 600) * pk.m;
+    o.type = S.snd && S.snd !== 'classic' ? pk.t : (type || 'sine'); o.frequency.value = f;
+    if (pk.slide) o.frequency.exponentialRampToValueAtTime(f * 1.8, now + d);   /* bubble: every beep slides up */
+    g.gain.setValueAtTime(0.0001, now); g.gain.exponentialRampToValueAtTime(Math.max(.001, S.vol * pk.v), now + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, now + d);
     o.connect(g); g.connect(actx.destination); o.start(now); o.stop(now + d + 0.02);
   }catch(e){}
 }
@@ -382,16 +433,29 @@ function fanfare(){ [523,659,784,1047].forEach(function(f,i){ setTimeout(functio
 function buzz(ms){ try{ if (S.haptic && navigator.vibrate) navigator.vibrate(ms || 30); }catch(e){} }
 function celebrate(){
   fanfare(); buzz([60,40,60,40,120]);
-  if (S.confetti && window.confetti){
-    confetti({particleCount:140, spread:85, origin:{y:.6}});
-    setTimeout(function(){ confetti({particleCount:80, angle:60, spread:60, origin:{x:0}}); confetti({particleCount:80, angle:120, spread:60, origin:{x:1}}); }, 250);
+  if (!S.confetti) return;
+  var st = S.win || 'confetti', cs = getComputedStyle(document.body), col = ['--accent', '--purple', '--yellow', '--green'].map(function(k){ return cs.getPropertyValue(k).trim() || '#fff'; });
+  if (st === 'emoji'){   /* emoji rain */
+    var em = ['🏆', '🎉', '⭐', '🔥', '🥳', '🏓', '✨', '👑'];
+    for (var i = 0; i < 36; i++) (function(i){ var s = document.createElement('span'); s.className = 'rain'; s.textContent = em[i % em.length]; s.style.left = (Math.random() * 96) + 'vw'; s.style.fontSize = (1.4 + Math.random() * 1.6) + 'rem'; s.style.animationDuration = (1.8 + Math.random() * 1.8) + 's'; s.style.animationDelay = (Math.random() * .9) + 's'; document.body.appendChild(s); setTimeout(function(){ s.remove(); }, 4800); })(i);
+    return;
+  }
+  if (!window.confetti) return;
+  if (st === 'fireworks'){
+    for (var k = 0; k < 7; k++) setTimeout(function(){ confetti({particleCount:70, spread:360, startVelocity:32, ticks:70, gravity:.9, scalar:.9, colors:col, origin:{x:.15 + Math.random() * .7, y:.15 + Math.random() * .35}}); beep(300 + Math.random() * 500, .12, 'triangle'); }, k * 260);
+  } else if (st === 'stars'){
+    confetti({particleCount:90, spread:110, startVelocity:38, shapes:['star'], colors:['#ffd700', '#ffec8b', '#fff5cc', col[0]], scalar:1.3, origin:{y:.6}});
+    setTimeout(function(){ confetti({particleCount:50, spread:160, shapes:['star'], colors:['#ffd700', '#fff'], scalar:.9, origin:{y:.4}}); }, 300);
+  } else {
+    confetti({particleCount:140, spread:85, origin:{y:.6}, colors:col.concat(['#ffffff'])});
+    setTimeout(function(){ confetti({particleCount:80, angle:60, spread:60, origin:{x:0}, colors:col}); confetti({particleCount:80, angle:120, spread:60, origin:{x:1}, colors:col}); }, 250);
   }
 }
 
 /* ---------- navigation ---------- */
 function showScreen(id){
   document.querySelectorAll('.screen').forEach(function(s){ s.classList.remove('active'); });
-  $('screen-' + id).classList.add('active'); beep(500, .05);
+  $('screen-' + id).classList.add('active'); beep(500, .05); if (id === 'menu') drawHello();
 }
 
 /* ---------- game directory ---------- */
@@ -530,15 +594,23 @@ function drawDual(){
     $('dserve' + i).classList.toggle('on', dualServer() === i);
   }
   $('dstatus').textContent = D.title + ' · first to ' + D.target + ', win by 2' + (D.bestOf > 1 ? ' · best of ' + D.bestOf : '');
-  $('deuce').classList.toggle('on', isDeuce()); if (PH.isHost) phSendState();
+  $('deuce').classList.toggle('on', isDeuce());
+  /* game point / match point banner: one more point wins it */
+  var gp = -1; for (var k = 0; k < 2; k++) if (!D.over && D.target > 1 && D.s[k] >= D.target - 1 && D.s[k] - D.s[1 - k] >= 1) gp = k;
+  var mp = gp > -1 && D.sets[gp] + 1 >= D.need;
+  $('gpt').className = 'gpt' + (gp > -1 ? ' on' : '') + (mp ? ' mp' : ''); if (gp > -1) $('gpt').textContent = (mp ? '🏆 MATCH POINT · ' : '🎯 GAME POINT · ') + dn(gp);
+  for (k = 0; k < 2; k++){ var on = D.stk && D.stk.p === k && D.stk.n >= 3; $('dstk' + k).classList.toggle('on', !!on); if (on) $('dstk' + k).textContent = '🔥 ' + D.stk.n + ' in a row'; }
+  if (PH.isHost) phSendState();
 }
 function snap(){ dHist.push(JSON.stringify({s:D.s.slice(), sets:D.sets.slice(), first:D.first, games:D.games})); if (dHist.length > 200) dHist.shift(); }
 function dualPoint(p, n){ if (AU.on && !AU.aa && !PH.inVote && AU.skip) brainManual(p); if (PH.isHost && AU.on && !PH.inVote && nCam() >= 2){ phVote(p, n || 1, true, 'host'); return; } if (PH.up && !PH.isHost && PH.relay){ PH.up.send({t:'pt', p:p, n:n || 1, auto:!!AU.on}); return; }
   if (D.over) return;
   snap(); D.s[p] += (n || 1); fx(p, n); buzz(25); beep(p ? 560 : 760, .07);
+  D.stk = D.stk && D.stk.p === p ? {p:p, n:D.stk.n + 1} : {p:p, n:1};
+  if (D.stk.n === 3 || D.stk.n === 5 || D.stk.n === 8) toast('🔥 ' + dn(p) + ' is on fire – ' + D.stk.n + ' in a row!');
   var a = D.s[p], b = D.s[1 - p];
   if (a >= D.target && a - b >= 2){
-    D.sets[p]++; D.games++;
+    D.sets[p]++; D.games++; D.stk = null;
     if (D.sets[p] >= D.need){ D.over = true; addHist({t:Date.now(), g:D.icon + ' ' + D.title, p:[{n:pn(p), i:D.pid[p], s:D.sets[p]}, {n:pn(1 - p), i:D.pid[1 - p], s:D.sets[1 - p]}]}); showWin(pn(p) + ' wins the match! 🏆', true); }
     else showWin(pn(p) + ' wins the game!', false);
   }
@@ -546,12 +618,12 @@ function dualPoint(p, n){ if (AU.on && !AU.aa && !PH.inVote && AU.skip) brainMan
 }
 function dualUndo(){
   if (!dHist.length) return toast('Nothing to undo');
-  var s = JSON.parse(dHist.pop()); D.s = s.s; D.sets = s.sets; D.first = s.first; D.games = s.games; D.over = false;
+  var s = JSON.parse(dHist.pop()); D.s = s.s; D.sets = s.sets; D.first = s.first; D.games = s.games; D.over = false; D.stk = null;
   beep(400, .06); drawDual();
 }
 function dualReset(full){
   if (full){ if (!confirm('Start a new match? Sets will be cleared.')) return; D.sets = [0,0]; D.games = 0; D.first = 0; }
-  D.s = [0,0]; D.over = false; dHist = []; drawDual(); beep(450, .06);
+  D.s = [0,0]; D.over = false; D.stk = null; dHist = []; drawDual(); beep(450, .06);
 }
 function dualRename(i){ choosePlayer(function(r){ D.names[i] = r.name; D.pid[i] = r.id; save('names:' + D.id, D.names); save('pid:' + D.id, D.pid); drawDual(); }); }
 function showWin(text, match){
@@ -822,8 +894,8 @@ $('pickList').addEventListener('click', function(e){
 });
 function animGrid(){ var g = $('grid'); g.classList.remove('anim'); void g.offsetWidth; g.classList.add('anim'); clearTimeout(agT); agT = setTimeout(function(){ g.classList.remove('anim'); }, 900); }
 function fx(p, n){
-  var z = document.querySelectorAll('.zone')[p], sc = $('dscore' + p);
-  sc.classList.remove('pop'); z.classList.remove('flash'); void sc.offsetWidth; sc.classList.add('pop'); z.classList.add('flash');
+  var z = document.querySelectorAll('.zone')[p], sc = $('dscore' + p), pa = S.pfx && S.pfx !== 'pop' ? 'pa-' + S.pfx : 'pop';
+  sc.classList.remove('pop', 'pa-flip', 'pa-bounce', 'pa-zoom', 'pa-shake'); z.classList.remove('flash'); void sc.offsetWidth; sc.classList.add(pa); z.classList.add('flash');
   var f = document.createElement('span'); f.className = 'plus'; f.textContent = '+' + (n || 1); z.appendChild(f); setTimeout(function(){ f.remove(); }, 800);
 }
 function gameStats(dual){ stGame = dual ? D.icon + ' ' + D.title : M.title; stTab = 'lb'; openStats(); }
@@ -1769,11 +1841,39 @@ function applyLook(){
     var n = parseInt(S.acc.slice(1), 16), lum = (0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255;
     b.setProperty('--accent', S.acc); b.setProperty('--glow', S.acc + '55'); b.setProperty('--on-accent', lum > .6 ? '#000' : '#fff');
   } else { ['--accent','--glow','--on-accent'].forEach(function(k){ b.removeProperty(k); }); }
+  /* personalize: player colours, background, card + score style */
+  if (S.c1) b.setProperty('--p1c', S.c1); else b.removeProperty('--p1c');
+  if (S.c2) b.setProperty('--p2c', S.c2); else b.removeProperty('--p2c');
+  var ds = document.body.dataset; ['bg', 'card', 'score'].forEach(function(k){ var v = S[k === 'bg' ? 'bgfx' : k === 'card' ? 'card' : 'sstyle']; if (v && v !== 'plain' && v !== 'gradientcard' && v !== 'bold') ds[k] = v; else delete ds[k]; });
+  drawHello();
 }
+function drawHello(){
+  var h = $('hello'); if (!S.me){ h.className = 'hello'; return; }
+  var hr = new Date().getHours(), part = hr < 5 ? 'Late night' : hr < 12 ? 'Good morning' : hr < 18 ? 'Good afternoon' : 'Good evening';
+  var games = HIST.filter(function(e){ return e.p && e.p.some(function(x){ return x.n === S.me; }); }), wins = games.filter(function(e){ var me = e.p.filter(function(x){ return x.n === S.me; })[0], top = Math.max.apply(null, e.p.map(function(x){ return x.s; })); return me && me.s === top; }).length;
+  h.innerHTML = part + ', ' + esc(S.me) + ' <span class="wave">👋</span><small>' + (games.length ? '🏆 ' + wins + ' wins in ' + games.length + ' matches · ready for another?' : 'Pick a game and let\'s play!') + '</small>';
+  h.className = 'hello on';
+}
+/* tap ripple on every button */
+document.addEventListener('pointerdown', function(e){
+  if (!S.anim) return; var b = e.target.closest('.btn-icon,.sm-btn,.ctrl-btn,.tab'); if (!b) return;
+  var r = b.getBoundingClientRect(), d = Math.max(r.width, r.height) * 2.2, s = document.createElement('span');
+  s.className = 'ripple'; s.style.width = s.style.height = d + 'px'; s.style.left = (e.clientX - r.left - d / 2) + 'px'; s.style.top = (e.clientY - r.top - d / 2) + 'px';
+  b.appendChild(s); setTimeout(function(){ s.remove(); }, 600);
+}, {passive:true});
 function buildExtra(){
   var acc = ['#3b82f6','#ef4444','#f59e0b','#10b981','#ec4899','#8b5cf6','#06b6d4','#f97316'];
   function opts(key, list){ return '<div class="wrap" style="justify-content:flex-start">' + list.map(function(o){ return '<button class="sm-btn' + (S[key] === o[0] ? ' accent' : '') + '" data-k="' + key + '" data-v="' + o[0] + '">' + o[1] + '</button>'; }).join('') + '</div>'; }
-  var h = '<h4>Language</h4><div class="wrap" style="justify-content:flex-start">' + LANGS.map(function(l){ return '<button class="sm-btn' + (LANG === l[0] ? ' accent' : '') + '" data-lang="' + l[0] + '">' + l[1] + '</button>'; }).join('') + '</div><h4>Accent color</h4><div class="wrap" style="justify-content:flex-start">' + acc.map(function(c){ return '<button class="dot" data-k="acc" data-v="' + c + '" style="background:' + c + '"></button>'; }).join('') + '<button class="sm-btn" data-k="acc" data-v="">Theme</button></div>'
+  function cols(key){ return '<div class="pcol">' + acc.map(function(c){ return '<button class="dot" data-k="' + key + '" data-v="' + c + '" style="background:' + c + (S[key] === c ? ';box-shadow:0 0 0 3px var(--text)' : '') + '"></button>'; }).join('') + '<input type="color" data-pick="' + key + '" value="' + (S[key] || '#3b82f6') + '" title="Any colour"><button class="sm-btn" data-k="' + key + '" data-v="">Auto</button></div>'; }
+  var h = '<h4>Language</h4><div class="wrap" style="justify-content:flex-start">' + LANGS.map(function(l){ return '<button class="sm-btn' + (LANG === l[0] ? ' accent' : '') + '" data-lang="' + l[0] + '">' + l[1] + '</button>'; }).join('') + '</div><h4>Accent color</h4>' + cols('acc')
+    + '<h4>🎨 Personalize</h4><input class="search" id="meName" maxlength="16" placeholder="Your name (shows a greeting + your record on Home)" value="' + esc(S.me || '') + '">'
+    + '<h4>Left player colour</h4>' + cols('c1') + '<h4>Right player colour</h4>' + cols('c2')
+    + '<h4>Background</h4>' + opts('bgfx', [['plain','Plain'],['gradient','🌈 Gradient'],['aurora','🌌 Aurora'],['stars','✨ Stars'],['grid','🔲 Grid']])
+    + '<h4>Card style</h4>' + opts('card', [['gradientcard','Gradient'],['glass','🧊 Glass'],['flat','▫️ Flat'],['neon','💡 Neon']])
+    + '<h4>Score style</h4>' + opts('sstyle', [['bold','Bold'],['digital','🔢 Digital'],['outline','⭕ Outline'],['neon','💡 Neon']])
+    + '<h4>Point animation</h4>' + opts('pfx', [['pop','💥 Pop'],['flip','🔄 Flip'],['bounce','🏀 Bounce'],['zoom','🔍 Zoom'],['shake','🫨 Shake']])
+    + '<h4>Win celebration</h4>' + opts('win', [['confetti','🎊 Confetti'],['fireworks','🎆 Fireworks'],['emoji','🥳 Emoji rain'],['stars','⭐ Gold stars']]) + '<button class="sm-btn" data-act="prevwin" style="margin-top:6px">▶ Preview</button>'
+    + '<h4>Sound pack</h4>' + opts('snd', [['classic','🔔 Classic'],['arcade','👾 Arcade'],['soft','🌙 Soft'],['retro','📼 Retro'],['bubble','🫧 Bubble']])
     + '<h4>Text size</h4>' + opts('size', [[14,'Small'],[16,'Normal'],[18,'Large']])
     + '<h4>Game grid columns</h4>' + opts('cols', [[1,'1'],[2,'2'],[3,'3']])
     + '<h4>Volume</h4><input type="range" id="vol" min="2" max="30" value="' + Math.round(S.vol * 100) + '" style="width:100%">'
@@ -1791,13 +1891,16 @@ $('setExtra').addEventListener('click', function(e){
   else if (b.dataset.tg){ S[b.dataset.tg] = !S[b.dataset.tg]; save('settings', S); applyLook(); buildSettings(); beep(650); }
   else if (b.dataset.delc){ if (confirm('Delete this custom game?')){ CUSTOM.splice(+b.dataset.delc, 1); save('custom', CUSTOM); buildGames(); renderGrid(); buildSettings(); } }
   else if (b.dataset.act === 'newc') newCustom();
+  else if (b.dataset.act === 'prevwin') celebrate();
   else if (b.dataset.act === 'reset'){ if (confirm('Erase ALL settings, favorites, stats and custom games?')){ Object.keys(localStorage).forEach(function(k){ if (k.indexOf('gamepro:') === 0) localStorage.removeItem(k); }); location.reload(); } }
 });
 $('setExtra').addEventListener('input', function(e){
   if (e.target.id === 'vol'){ S.vol = e.target.value / 100; save('settings', S); }
   else if (e.target.id === 'dn1' || e.target.id === 'dn2'){ S[e.target.id === 'dn1' ? 'p1' : 'p2'] = e.target.value.trim(); save('settings', S); }
+  else if (e.target.id === 'meName'){ S.me = e.target.value.trim(); save('settings', S); drawHello(); }
+  else if (e.target.dataset.pick){ S[e.target.dataset.pick] = e.target.value; save('settings', S); applyLook(); }   /* live preview while dragging the colour wheel */
 });
-$('setExtra').addEventListener('change', function(e){ if (e.target.id === 'vol') beep(700); });
+$('setExtra').addEventListener('change', function(e){ if (e.target.id === 'vol') beep(700); else if (e.target.dataset.pick) buildSettings(); });
 function newCustom(){
   var name = prompt('Game name:'); if (!name || !name.trim()) return; name = name.trim().replace(/\|/g, ' ').slice(0, 28);
   var icon = (prompt('Emoji icon:', '⭐') || '⭐').replace(/\|/g, '').slice(0, 4), t = prompt('Type: 1 = two-player scoreboard, 2 = multiplayer tracker', '1'), line;
