@@ -299,7 +299,7 @@ header{box-shadow:0 2px 16px rgba(0,0,0,.25)}
   <div class="autohelp" id="autoStat" style="padding:2px 12px"></div>
   <div class="autohelp" id="autoReady" style="padding:0 12px 4px;font-weight:800;color:var(--text)"></div>
   <div class="autoctl">
-    <button class="sm-btn ttonly accent" onclick="bestMode()">⚡ Best settings</button><button class="sm-btn ttonly" id="recBtn" onclick="recToggle()">📸 Record data</button><button class="sm-btn ttonly" onclick="recExport()">⬇️ Export pictures</button><button class="sm-btn ttonly" id="mlBtn" onclick="toggleMl()">🧠 AI learning</button><button class="sm-btn ttonly" onclick="mlReset()">♻️ Reset AI</button><button class="sm-btn ttonly" id="micBtn" onclick="toggleMic()">🎤 Mic: off</button><button class="sm-btn ttonly" onclick="startTeach()">🎓 Teach ball</button><button class="sm-btn ttonly" onclick="startWiz()">📐 Calibrate</button><button class="sm-btn ttonly" id="stayBtn" onclick="toggleStay()">⏱ Stay rule</button><button class="sm-btn ttonly" onclick="autoSwap()">⇄ Swap sides</button>
+    <button class="sm-btn ttonly accent" onclick="bestMode()">⚡ Best settings</button><button class="sm-btn ttonly" id="recBtn" onclick="recToggle()">📸 Record data</button><button class="sm-btn ttonly" onclick="recExport()">⬇️ Export pictures</button><button class="sm-btn ttonly" id="nnBtn" onclick="toggleNn()">🤖 Neural model</button><button class="sm-btn ttonly" id="mlBtn" onclick="toggleMl()">🧠 AI learning</button><button class="sm-btn ttonly" onclick="mlReset()">♻️ Reset AI</button><button class="sm-btn ttonly" id="micBtn" onclick="toggleMic()">🎤 Mic: off</button><button class="sm-btn ttonly" onclick="startTeach()">🎓 Teach ball</button><button class="sm-btn ttonly" onclick="startWiz()">📐 Calibrate</button><button class="sm-btn ttonly" id="stayBtn" onclick="toggleStay()">⏱ Stay rule</button><button class="sm-btn ttonly" onclick="autoSwap()">⇄ Swap sides</button>
     <button class="sm-btn" onclick="autoCam()">🔄 Camera</button><button class="sm-btn cueonly" id="pkBtn" onclick="pkEdit()">🕳 Move holes</button><label class="cueonly">Hole size <input type="range" id="pkSize" min="50" max="220" value="100" oninput="AU.pks = this.value / 100"></label>
     <button class="sm-btn cueonly red" onclick="cueFoul()">⚠️ Foul</button><button class="sm-btn cueonly" onclick="cueTurn()">⇄ Turn</button><button class="sm-btn cueonly" onclick="cueReset()">📐 Redo setup</button>
     <label>Sensitivity <input type="range" id="autoSens" min="1" max="10" value="5" oninput="AU.sens=+this.value"></label>
@@ -882,7 +882,7 @@ function openAuto(mode){
     AU.cq = []; AU.roi = null; AU.pkn = null; AU.pks = 1; AU.pedit = false; $('pkSize').value = 100; $('pkBtn').textContent = '🕳 Move holes'; AU.pt = 0; AU.hand = 0; AU.ba = 12; AU.sn = {ph:'red', reds:15, ti:0}; AU.grp = [null, null]; AU.gp = {solid:0, stripe:0}; AU.balls = []; AU.turn = 0; AU.moving = false; AU.still = 0; AU.cnt = 0; AU.shotPot = AU.foul = false;
     AU.cs = 0; AU.cal = null; AU.calPts = []; $('stayBtn').textContent = '⏱ Stay rule: ' + (AU.stay ? 'on' : 'off'); AU.help = AU.help || $('autoHelp').textContent; $('autoOv').dataset.mode = AU.mode;
     $('autoHelp').textContent = AU.mode === 'cue' ? 'Hold your phone above the table (or high at an angle) so the whole cloth is in view. Tap the 4 corners of the playing surface (top-left, top-right, bottom-right, bottom-left). A ball that vanishes into a pocket scores for the player whose turn it is. The turn passes when a shot pots nothing. Use ⇄ Turn to fix it.' : AU.help;
-    syncBall(); $('autoOv').classList.add('show'); autoNext(); beep(800, .1); if (AU.mode === 'tt'){ startWiz(); $('micBtn').textContent = '🎤 Mic: ' + (AU.mic ? 'on' : 'off'); if (AU.mic) micOn(); }
+    syncBall(); $('autoOv').classList.add('show'); autoNext(); beep(800, .1); if (AU.mode === 'tt'){ startWiz(); $('micBtn').textContent = '🎤 Mic: ' + (AU.mic ? 'on' : 'off'); if (AU.mic) micOn(); if (NN.on) nnStart(); }
   }).catch(function(){ toast('Allow camera access to use Auto-Score'); });
 }
 function closeAuto(){
@@ -975,6 +975,7 @@ function autoLoop(){
     if (pred && sc > 18) continue;
     if (sc < bs){ bs = sc; best = {x:cx, y:cy, a:a, f:f, pm:pm, bw:bw, bh:bh, c:[cr / a, cg / a, cb / a]}; }
   }
+  best = nnMerge(best, t);
   if (best){
     if (L && t - L.t > 150) AU.trk = [];
     AU.trk.push({x:best.x, y:best.y, t:t}); if (AU.trk.length > 5) AU.trk.shift(); AU.lastPm = (ML.ready && AU.mlOn) ? best.pm : null; detectBounce(t); netCheck(best, t); if (AU.last > -1 && sideOf(best) !== AU.last) AU.lastT = t;
@@ -997,7 +998,7 @@ function drawAuto(b, t){
   var l = toPlayer(0), rr = toPlayer(1);
   $('autoScore').textContent = '◀ ' + dn(l) + ' ' + D.s[l] + '  –  ' + D.s[rr] + ' ' + dn(rr) + ' ▶';
   $('autoStat').textContent = AU.fps + ' fps · ' + (AU.trk.length ? 'tracking ball ✓' : 'searching…') + ' · ' + (AU.wz >= 0 && AU.wz < 8 ? WIZ[AU.wz] : AU.tch ? (AU.tch.p ? 'teaching… ' + Math.max(0, 6 - Math.round((performance.now() - AU.tch.t0) / 1000)) + 's · ' + AU.tch.s.length + ' samples' : 'tap the ball') : AU.cs ? CALMSG[AU.cs - 1] : AU.pick ? 'tap the ball' : AU.ball) + (AU.an ? ' · 🎤 ' + (AU.nclick || 0) + ' hits' : '') + (AU.mlOn ? ' · 🧠 ' + ML.n + '/' + CAP + (ML.ready ? ' ✓' : '') : '') + (RECD.on ? ' · 📸 ' + RECD.items.length : '') + ' · ⚙️ brain ' + BR.n + ' lessons';
-  var rs = readyScore(); $('autoReady').textContent = 'Readiness ' + rs[0] + '% · ' + rs[1];
+  var rs = readyScore(); $('autoReady').textContent = 'Readiness ' + rs[0] + '% · ' + rs[1] + (NN.on ? ' · 🤖 ' + (NN.sess ? NN.ms + ' ms/frame' + (NN.ms > 250 ? ' (slow)' : '') : 'loading…') : '');
 }
 
 var CALMSG = ['Tap the FAR-LEFT corner of the table', 'Tap the FAR-RIGHT corner', 'Tap the NEAR-RIGHT corner', 'Tap the NEAR-LEFT corner'];
@@ -1147,6 +1148,52 @@ function brainLearn(e, y){
   BR.n++; save('abrain', BR);
 }
 function brainManual(p){ var k = AU.skip; AU.skip = null; if (k && k.pl === p && performance.now() - k.t < 6000){ brainLearn(k, 1); toast('🧠 learned: that call was real'); } }
+/* ---------- YOUR TRAINED NEURAL MODEL (pingpong.onnx), run on the phone with onnxruntime-web ---------- */
+var ORT_URL = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.17.1/dist/';
+var NN = {on:load('ann', true), run:false, sess:null, S:1280, ms:0, det:null, used:null, seen:0};
+function toggleNn(){ NN.on = !NN.on; save('ann', NN.on); toast(NN.on ? '🤖 Neural model on' : '🤖 Neural model off'); if (NN.on && AU.on) nnStart(); beep(600, .05); }
+function nnLoad(){
+  if (NN.sess) return Promise.resolve();
+  return new Promise(function(res, rej){
+    if (window.ort) return res(); var sc = document.createElement('script'); sc.src = ORT_URL + 'ort.min.js'; sc.onload = res; sc.onerror = rej; document.head.appendChild(sc);
+  }).then(function(){
+    ort.env.wasm.wasmPaths = ORT_URL; ort.env.wasm.numThreads = 1;
+    return fetch('pingpong640.onnx', {method:'HEAD'}).then(function(r){ if (r.ok){ NN.S = 640; return 'pingpong640.onnx'; } NN.S = 1280; return 'pingpong.onnx'; }).catch(function(){ NN.S = 1280; return 'pingpong.onnx'; });
+  }).then(function(file){
+    return ort.InferenceSession.create(file, {executionProviders:['webgl', 'wasm']}).catch(function(){ return ort.InferenceSession.create(file, {executionProviders:['wasm']}); });
+  }).then(function(sess){ NN.sess = sess; toast('🤖 Neural model loaded (' + NN.S + ' px)'); });
+}
+function nnStart(){
+  if (NN.run) return; NN.run = true;
+  nnLoad().then(nnTick).catch(function(){ NN.run = false; NN.on = false; toast('🤖 Could not load the model – is pingpong.onnx next to index.html?'); });
+}
+/* YOLO output is [1, 5, N]: rows = centre x, centre y, width, height, ball score (all in model pixels). Convert the best one back to tracker units. */
+function nnDecode(dt, N, px, py, sc, vw, vh){
+  var best = -1, bc = 0, i; for (i = 0; i < N; i++){ var c = dt[4 * N + i]; if (c > bc){ bc = c; best = i; } }
+  if (best < 0 || bc < .25) return null;
+  return {x:((dt[best] - px) / sc) / vw * AU.W, y:((dt[N + best] - py) / sc) / vh * AU.H, conf:bc};
+}
+function nnTick(){
+  if (!AU.on || !NN.on || AU.mode !== 'tt'){ NN.run = false; return; }
+  var v = $('autoVid'); if (v.readyState < 2 || !v.videoWidth){ setTimeout(nnTick, 100); return; }
+  var S = NN.S, cv = NN.cv || (NN.cv = document.createElement('canvas')), vw = v.videoWidth, vh = v.videoHeight, sc = S / Math.max(vw, vh), w = Math.round(vw * sc), h = Math.round(vh * sc), px = Math.floor((S - w) / 2), py = Math.floor((S - h) / 2), t0 = performance.now();
+  cv.width = cv.height = S; var x = NN.cx || (NN.cx = cv.getContext('2d', {willReadFrequently:true})); x.fillStyle = 'rgb(114,114,114)'; x.fillRect(0, 0, S, S); x.drawImage(v, px, py, w, h);   /* same letterbox as in training */
+  var d = x.getImageData(0, 0, S, S).data, n = S * S, f = new Float32Array(3 * n), i;
+  for (i = 0; i < n; i++){ f[i] = d[i * 4] / 255; f[n + i] = d[i * 4 + 1] / 255; f[2 * n + i] = d[i * 4 + 2] / 255; }
+  NN.sess.run({images:new ort.Tensor('float32', f, [1, 3, S, S])}).then(function(out){
+    var o = out[Object.keys(out)[0]], r2 = nnDecode(o.data, o.dims[2], px, py, sc, vw, vh); NN.ms = Math.round(performance.now() - t0);
+    if (r2){ r2.t = t0; NN.det = r2; NN.seen++; } else NN.det = null;
+    setTimeout(nnTick, 0);
+  }).catch(function(){ NN.on = false; NN.run = false; toast('🤖 Model failed to run – turned off'); });
+}
+/* merge the neural detection with the fast tracker: if they agree, refine the position; if the tracker saw nothing, trust the network. Stale detections (slow phone) are ignored. */
+function nnMerge(best, t){
+  var d = NN.det; if (!NN.on || !d || NN.used === d || t - d.t > 250) return best;
+  NN.used = d;
+  if (best && Math.hypot(best.x - d.x, best.y - d.y) < 8){ best.x = (best.x + d.x) / 2; best.y = (best.y + d.y) / 2; return best; }
+  if (d.conf >= .45) return {x:d.x, y:d.y, a:AU.ta || 20, f:null, bw:3, bh:3, c:[255, 255, 255]};
+  return best;
+}
 /* ---- full calibration wizard: background, table, net, floor, ball ---- */
 var WIZ = ['STEP 1/9 – Clear the table and step out of the picture. Learning the background…', 'STEP 2/9 – Tap the FAR-LEFT corner of the table', 'STEP 3/9 – Tap the FAR-RIGHT corner', 'STEP 4/9 – Tap the NEAR-RIGHT corner', 'STEP 5/9 – Tap the NEAR-LEFT corner', 'STEP 6/9 – Tap the TOP of the net at the LEFT post', 'STEP 7/9 – Tap the TOP of the net at the RIGHT post', 'STEP 8/9 – Tap the FLOOR just below the table', 'STEP 9/9 – Teach the ball'];
 function startWiz(){
