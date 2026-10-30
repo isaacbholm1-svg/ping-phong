@@ -375,6 +375,7 @@ body[data-score=neon] .zscore{color:#fff;text-shadow:0 0 6px var(--sc),0 0 18px 
     <button class="sm-btn ttonly accent" onclick="bestMode()">⚡ Best settings</button><button class="sm-btn ttonly" onclick="startTeach()">🎓 Teach ball</button><button class="sm-btn ttonly" id="stayBtn" onclick="toggleStay()">⏱ Stay rule</button>
     <button class="sm-btn ttonly" id="nnFile" onclick="nnPick()">🤖 Model file: Pro</button><button class="sm-btn ttonly" id="mlBtn" onclick="toggleMl()">🧠 AI learning</button><button class="sm-btn ttonly" onclick="mlReset()">♻️ Reset AI</button>
     <button class="sm-btn ttonly" id="recBtn" onclick="recToggle()">📸 Record data</button><button class="sm-btn ttonly" onclick="recExport()">⬇️ Export pictures</button>
+    <button class="sm-btn ttonly" id="resBtn" onclick="cycleRes()">🔍 Detail: High</button>
     <label>Sensitivity <input type="range" id="autoSens" min="1" max="10" value="5" oninput="AU.sens=+this.value"></label>
   </div>
   </details>
@@ -965,7 +966,7 @@ $('peopleBody').addEventListener('click', function(e){
 });
 
 /* ---------- Auto-Score (BETA): camera ball tracking ---------- */
-var AUTOMODE = '', AU = {stay:load('astay', true), cal:null, cs:0, calPts:[], facing:'environment', mode:'tt', cloth:load('acloth', null), tl:null, br:null, balls:[], turn:0, moving:false, still:0, cnt:0, shotPot:false, foul:false, pendN:1, on:false, stream:null, raf:0, prev:null, W:96, H:72, net:.5, swap:false, sens:5, trk:[], last:-1, lastT:0, cool:0, pend:null, pendT:0, cv:null, cx:null, bx:0, by:0, bt:-9999, gen:0, ball:load('aball', 'auto'), lc:load('alc', [255, 140, 30]), lcr:load('alcr', 5000), tch:null, ta:load('ata', 0), wz:-1, netPts:null, floorY:null, bg:null, bgt:null, bgN:0, shake:0, rebg:false, mlOn:load('aml', true), cands:[], mic:load('amic', true), nclick:0, clicks:[], an:null, pick:false, fps:0, fc:0, ft:0, mask:null, seen:null, stack:null};
+var AUTOMODE = '', AU = {stay:load('astay', true), cal:null, cs:0, calPts:[], facing:'environment', mode:'tt', cloth:load('acloth', null), tl:null, br:null, balls:[], turn:0, moving:false, still:0, cnt:0, shotPot:false, foul:false, pendN:1, on:false, stream:null, raf:0, prev:null, W:96, H:72, net:.5, swap:false, sens:5, trk:[], last:-1, lastT:0, cool:0, pend:null, pendT:0, cv:null, cx:null, bx:0, by:0, bt:-9999, gen:0, ball:load('aball', 'auto'), lc:load('alc', [255, 140, 30]), lcr:load('alcr', 5000), tch:null, ta:load('ata', 0), wz:-1, netPts:null, floorY:null, bg:null, bgt:null, bgN:0, shake:0, rebg:false, mlOn:load('aml', true), cands:[], mic:load('amic', true), res:load('ares', 320), k:1, iso:.3, elong:3.2, mv:10, tmin:.12, tl:[], tsel:0, bv:.3, cvw:2, xbon:1.8, xwin:900, nclick:0, clicks:[], an:null, pick:false, fps:0, fc:0, ft:0, mask:null, seen:null, stack:null};
 function toPlayer(side){ return AU.swap ? 1 - side : side; }
 function syncBall(){ document.querySelectorAll('#autoBall [data-b]').forEach(function(b){ b.classList.toggle('accent', b.dataset.b === AU.ball || (b.dataset.b === 'custom' && AU.pick)); }); }
 $('autoBall').addEventListener('click', function(e){
@@ -976,12 +977,21 @@ $('autoBall').addEventListener('click', function(e){
 /* the tracker grid follows the camera's real shape (the long side is always 128, or 320 for pool), so the ball stays round and taps land where you tap.
    Held upright, an iPhone sends a tall portrait picture – that is what made the view thin. */
 function auDims(){
-  var v = $('autoVid'), ar = (v.videoWidth && v.videoHeight) ? v.videoWidth / v.videoHeight : 4 / 3, L = AU.mode === 'cue' ? 320 : 128;
+  var v = $('autoVid'), ar = (v.videoWidth && v.videoHeight) ? v.videoWidth / v.videoHeight : 4 / 3, L = AU.mode === 'cue' ? 320 : AU.res;
   $('autoOv').style.setProperty('--ar', ar.toFixed(4)); $('autoOv').classList.toggle('portrait', ar < 1); AU.ar = ar;
   AU.W = ar >= 1 ? L : Math.round(L * ar); AU.H = ar >= 1 ? Math.round(L / ar) : L;
-  var N = AU.W * AU.H; AU.mask = new Uint8Array(N); AU.seen = new Uint8Array(N); AU.stack = new Int32Array(N);
+  AU.k = AU.mode === 'cue' ? 1 : L / 128;   /* ping pong limits were tuned on a 128-wide grid: every size in grid pixels scales with k */
+  var N = AU.W * AU.H; AU.mask = new Uint8Array(N); AU.seen = new Uint8Array(N); AU.stack = new Int32Array(N); AU.fgm = new Uint8Array(N);
   AU.cv = document.createElement('canvas'); AU.cv.width = AU.W; AU.cv.height = AU.H; AU.cx = AU.cv.getContext('2d', {willReadFrequently:true});
-  AU.prev = null; AU.bg = null; AU.bs = null; AU.trk = []; AU.fh = [];
+  AU.prev = null; AU.bg = null; AU.bs = null; AU.trk = []; AU.fh = []; AU.tl = []; AU.tsel = 0;
+}
+/* tracking detail: how many pixels across the tracker looks at. Tested on match video: 128 → misses almost every ball,
+   192 → 11 % of bounces, 320 → 61 %. Lower it only if an older phone gets slow. */
+var RES = [[192, 'Normal'], [320, 'High'], [384, 'Max']];
+function resSync(){ var r = RES.filter(function(q){ return q[0] === AU.res; })[0] || RES[1]; $('resBtn').textContent = '🔍 Detail: ' + r[1]; }
+function cycleRes(){
+  var i = RES.map(function(q){ return q[0]; }).indexOf(AU.res); AU.res = RES[(i + 1) % RES.length][0]; save('ares', AU.res); resSync();
+  if (AU.on && AU.mode === 'tt'){ auDims(); AU.rebg = true; toast('🔍 Detail ' + AU.W + '×' + AU.H + ' – relearning the background, clear the table'); } beep(600, .05);
 }
 /* phone turned while Auto-Score is running: the picture changed shape, so the grid and the calibration must be redone */
 $('autoVid').addEventListener('resize', function(){
@@ -995,6 +1005,7 @@ function openAuto(mode){
   navigator.mediaDevices.getUserMedia({video:{facingMode:AU.facing, width:{ideal:1920}, height:{ideal:1080}, frameRate:{ideal:tt ? 120 : 60}}, audio:false}).then(function(st){
     AU.stream = st; var v = $('autoVid'); v.muted = true; v.srcObject = st; v.play();
     var ts = st.getVideoTracks()[0], gs = ts && ts.getSettings ? ts.getSettings() : {}; AU.camFps = Math.round(gs.frameRate || 0);
+    AU.bv = AU.camFps >= 90 ? .3 : .15;   /* bounce test: measured best on real match video – 120 fps can be stricter than 60 */
     return new Promise(function(res){ if (v.videoWidth) res(st); else { v.onloadedmetadata = function(){ v.onloadedmetadata = null; res(st); }; setTimeout(function(){ res(st); }, 1500); } });
   }).then(function(st){
     AU.mode = mode || 'tt'; auDims();
@@ -1003,7 +1014,7 @@ function openAuto(mode){
     AU.cq = []; AU.roi = null; AU.pkn = null; AU.pks = 1; AU.pedit = false; $('pkSize').value = 100; $('pkBtn').textContent = '🕳 Move holes'; AU.pt = 0; AU.hand = 0; AU.ba = 12; AU.sn = {ph:'red', reds:15, ti:0}; AU.grp = [null, null]; AU.gp = {solid:0, stripe:0}; AU.balls = []; AU.turn = 0; AU.moving = false; AU.still = 0; AU.cnt = 0; AU.shotPot = AU.foul = false;
     AU.cs = 0; AU.cal = null; AU.calPts = []; $('stayBtn').textContent = '⏱ Stay rule: ' + (AU.stay ? 'on' : 'off'); AU.help = AU.help || $('autoHelp').textContent; $('autoOv').dataset.mode = AU.mode;
     $('autoHelp').textContent = AU.mode === 'cue' ? 'Hold your phone above the table (or high at an angle) so the whole cloth is in view. Tap the 4 corners of the playing surface (top-left, top-right, bottom-right, bottom-left). A ball that vanishes into a pocket scores for the player whose turn it is. The turn passes when a shot pots nothing. Use ⇄ Turn to fix it.' : AU.help;
-    syncBall(); $('autoOv').classList.add('show'); autoNext(); beep(800, .1); if (AU.mode === 'tt'){ startWiz(); $('micBtn').textContent = '🎤 Mic: ' + (AU.mic ? 'on' : 'off'); nnBtnSync(); if (AU.mic) micOn(); if (NN.on) nnStart(); }
+    syncBall(); $('autoOv').classList.add('show'); autoNext(); beep(800, .1); if (AU.mode === 'tt'){ startWiz(); $('micBtn').textContent = '🎤 Mic: ' + (AU.mic ? 'on' : 'off'); nnBtnSync(); resSync(); if (AU.mic) micOn(); if (NN.on) nnStart(); }
   }).catch(function(){ toast('Allow camera access to use Auto-Score'); });
 }
 function closeAuto(){
@@ -1051,8 +1062,8 @@ function trkS(){ var k = AU.trk, o = [], i = k.length - 1; if (i < 0) return o; 
 function detectBounce(t){
   var k = trkS(), n = k.length; if (n < 5 || AU.tch || t < AU.cool || AU.pend !== null || D.over || $('winOverlay').classList.contains('show')) return;
   var s = [], i; for (i = n - 4; i < n; i++) s.push(k[i].y - k[i - 1].y);
-  if ((s[0] + s[1]) / 2 > .9 && (s[2] + s[3]) / 2 < -.9 && restitutionOk(s) && k[n - 1].t - k[n - 5].t < 260){
-    var m = bouncePt(k, n); if (AU.floorY != null && !onTable(m) && m.y >= AU.floorY * AU.H - 4 && AU.last > -1 && AU.pend === null){ var fs = AU.last; AU.last = -1; AU.cool = t + 1500; toast('⬇️ Ball hit the floor'); brainPropose('floor', toPlayer(1 - fs), t); return; }
+  if ((s[0] + s[1]) / 2 > AU.bv * AU.k && (s[2] + s[3]) / 2 < -AU.bv * AU.k && restitutionOk(s) && k[n - 1].t - k[n - 5].t < 260){
+    var m = bouncePt(k, n); if (AU.floorY != null && !onTable(m) && m.y >= AU.floorY * AU.H - 4 * AU.k && AU.last > -1 && AU.pend === null){ var fs = AU.last; AU.last = -1; AU.cool = t + 1500; toast('⬇️ Ball hit the floor'); brainPropose('floor', toPlayer(1 - fs), t); return; }
     if (!onTable(m) || t - AU.bt < 150) return;
     if (AU.an && !AU.micIgnore && !heard(t)){ if (++AU.nb >= 4 && !AU.nclick){ AU.micIgnore = true; toast('🎤 Mic heard nothing – ignoring it'); } return; }   /* mic is on: a real table bounce must also make a click */
     var side = sideOf(m); AU.bx = m.x; AU.by = m.y; AU.bt = t; beep(1200, .03);
@@ -1064,10 +1075,18 @@ function autoNext(){
   var v = $('autoVid'), g = AU.gen, f = function(){ if (g === AU.gen) autoLoop(); };
   if (v.requestVideoFrameCallback) v.requestVideoFrameCallback(f); else AU.raf = requestAnimationFrame(f);
 }
-function isBall(r, g, b, l){
+/* Is this pixel our ball? With a learned background the test is CONTRAST: a white ball is clearly brighter than the empty scene
+   at that spot, an orange one clearly redder. A small ball always blends with what is behind it (a white ball over a blue table
+   reads as light blue), so fixed "white = bright and grey" colour rules miss it. o3 = pixel index * 3 into the background. */
+function isBall(r, g, b, l, o3){
   var m = AU.ball;
   if (m === 'custom'){ var dr = r - AU.lc[0], dg = g - AU.lc[1], db = b - AU.lc[2]; return dr * dr + dg * dg + db * db < (AU.lcr || 5000); }
   var mx = Math.max(r, g, b), mn = Math.min(r, g, b), white = l > 160 && mx - mn < 50, orange = r > 150 && r - b > 80 && g > 70 && r > g + 25;
+  if (AU.bg && o3 != null){
+    var bg = AU.bg, bl = (bg[o3] + bg[o3 + 1] + bg[o3 + 2]) / 3, need = 30 - AU.sens * 1.5;   /* sensitivity 5 → 22 brighter than the background */
+    white = white || (l - bl > need && l > 85);
+    orange = orange || (r - bg[o3] > need * 1.6 && r > g + 15 && r > b + 35);
+  }
   return m === 'white' ? white : m === 'orange' ? orange : (white || orange);
 }
 function autoLoop(){
@@ -1082,7 +1101,8 @@ function autoLoop(){
   for (i = top * W; i < N; i++){
     var j = i * 4, r = d[j], g = d[j + 1], b = d[j + 2], l = (r + g + b) / 3, df = l - pv[i]; pv[i] = l;
     var o3 = i * 3, fg = AU.bg ? (Math.abs(r - AU.bg[o3]) > AU.bgt[i] || Math.abs(g - AU.bg[o3 + 1]) > AU.bgt[i] || Math.abs(b - AU.bg[o3 + 2]) > AU.bgt[i]) : (df > thr || df < -thr);
-    if (fg){ fgc++; if (AU.tch || isBall(r, g, b, l)) mask[i] = 1; } else if (AU.bg){ AU.bg[o3] += (r - AU.bg[o3]) * .01; AU.bg[o3 + 1] += (g - AU.bg[o3 + 1]) * .01; AU.bg[o3 + 2] += (b - AU.bg[o3 + 2]) * .01; }
+    AU.fgm[i] = (fg ? 1 : 0) | (df > AU.mv || df < -AU.mv ? 2 : 0);   /* bit 1: differs from the empty scene, bit 2: changed since the last frame */
+    if (fg){ fgc++; if (AU.tch || isBall(r, g, b, l, AU.bg ? o3 : null)) mask[i] = 1; } else if (AU.bg){ AU.bg[o3] += (r - AU.bg[o3]) * .01; AU.bg[o3 + 1] += (g - AU.bg[o3 + 1]) * .01; AU.bg[o3 + 2] += (b - AU.bg[o3 + 2]) * .01; }
   }
   if (AU.bg){ if (fgc > N * .35){ if (++AU.shake > 45){ toast('Camera moved or lights changed – relearning the background'); AU.bg = null; AU.rebg = true; AU.shake = 0; } } else AU.shake = 0; }
   var nT = AU.trk.length, L = AU.trk[nT - 1], pred = null, best = null, bs = 1e9; AU.cands = [];
@@ -1098,14 +1118,28 @@ function autoLoop(){
       if (y > 0 && mask[q - W] && !seen[q - W]){ seen[q - W] = 1; stack[sp++] = q - W; }
       if (y < H - 1 && mask[q + W] && !seen[q + W]){ seen[q + W] = 1; stack[sp++] = q + W; }
     }
-    var bw = x1 - x0 + 1, bh = y1 - y0 + 1; if (a < (AU.ta ? AU.ta * .4 : 3) || a > (AU.ta ? AU.ta * 2.4 : 40) || bw > 8 || bh > 8 || bw / bh > 1.8 || bh / bw > 1.8 || a / (bw * bh) < .55) continue;
+    var bw = x1 - x0 + 1, bh = y1 - y0 + 1, K = AU.k, ta = AU.ta * K * K; if (a < (ta ? ta * .4 : 3) || a > (ta ? ta * 2.4 : 40 * K * K) || bw > 8 * K || bh > 8 * K || bw / bh > AU.elong || bh / bw > AU.elong || a / (bw * bh) < .55) continue;
+    /* isolation: a ball in flight is a bright dot with empty scene all around it. A hand, shoe or shirt edge is glued to a body
+       that also differs from the background – count how much of the ring around the blob is "something", and skip glued blobs */
+    if (AU.bg && !AU.tch){
+      var R = Math.max(2, Math.round(2 * K)), rx0 = Math.max(0, x0 - R), rx1 = Math.min(W - 1, x1 + R), ry0 = Math.max(top, y0 - R), ry1 = Math.min(H - 1, y1 + R), rf = 0, rn = 0, mvc = 0, xx, yy, fm;
+      for (yy = ry0; yy <= ry1; yy++) for (xx = rx0; xx <= rx1; xx++){
+        fm = AU.fgm[yy * W + xx];
+        if (xx >= x0 - 1 && xx <= x1 + 1 && yy >= y0 - 1 && yy <= y1 + 1) mvc += fm >> 1;   /* motion on or right next to the blob */
+        if (xx >= x0 && xx <= x1 && yy >= y0 && yy <= y1) continue; rn++; rf += fm & 1;
+      }
+      if (rn && rf / rn > AU.iso) continue;
+      if (!mvc) continue;   /* motion: a ball in play is never still – a white sock, logo or lamp reflection is */
+    }
     var cx = sx / a, cy = sy / a, f = mlFeat(a, bw, bh, cx, cy, cr / a, cg / a, cb / a, pred), pm = (ML.ready && AU.mlOn) ? mlP(f) : 1;
     if (pm < .2) continue;   /* the learned model says this does not look like OUR ball */
-    AU.cands.push({f:f, x:cx, y:cy});
+    var cand = {x:cx, y:cy, a:a, f:f, pm:pm, bw:bw, bh:bh, c:[cr / a, cg / a, cb / a]}; AU.cands.push(cand);
+    if (!AU.tch) continue;   /* teaching: simply follow the blob nearest the tapped ball */
     var sc = (pred ? Math.hypot(cx - pred.x, cy - pred.y) : -a) - pm * 4;
-    if (pred && sc > 18) continue;
-    if (sc < bs){ bs = sc; best = {x:cx, y:cy, a:a, f:f, pm:pm, bw:bw, bh:bh, c:[cr / a, cg / a, cb / a]}; }
+    if (pred && sc > 18 * K) continue;
+    if (sc < bs){ bs = sc; best = cand; }
   }
+  if (!AU.tch) best = mhtSelect(AU.cands, t);
   AU.fh.push({t:t, c:AU.cands, b:best}); if (AU.fh.length > 150) AU.fh.shift();   /* 1.25–2.5 s of frames, so a late model answer can be matched to the frame it looked at */
   best = nnMerge(best, t);
   if (best){
@@ -1116,6 +1150,47 @@ function autoLoop(){
     if (AU.stay && AU.pend === null && t > AU.cool && !D.over){ var sd = AU.last; AU.last = -1; AU.cool = t + 1500; brainPropose('stay', toPlayer(1 - sd), t); } else AU.last = -1;
   }
   micPoll(t); recStep(best, t); mlLabel(best); mlTick(t); teachStep(best, t); drawAuto(best, t);
+}
+/* ---- multi-track ball finder ----
+   Every candidate blob gets its own short track. Each track is scored on how BALL-LIKE its motion is: fast, smooth,
+   steady. Hands, paddles and shoes move slower and jerkier; logos and socks do not move at all. The best track wins
+   (with a little stickiness so it does not flicker), instead of "the blob nearest my last guess", which could lock
+   onto the wrong thing forever. */
+function trScore(tr){
+  var p = tr.p, n = p.length, K = AU.k, v = [], i; if (n < 3) return 0;
+  for (i = 1; i < n; i++){ var dt = Math.max(1, p[i].t - p[i - 1].t) / 16.7; v.push({x:(p[i].x - p[i - 1].x) / dt, y:(p[i].y - p[i - 1].y) / dt}); }
+  var sp = v.map(function(q){ return Math.hypot(q.x, q.y); }).sort(function(a, b){ return a - b; }), med = sp[sp.length >> 1];
+  var ac = []; for (i = 1; i < v.length; i++) ac.push(Math.hypot(v[i].x - v[i - 1].x, v[i].y - v[i - 1].y)); ac.sort(function(a, b){ return a - b; });
+  var rough = ac.length ? ac[ac.length >> 1] / (med + K) : 1;
+  var speed = Math.max(0, Math.min(1.5, (med / K - 1) / 3));   /* 0 below 1 px per 1/60 s (on the 128 grid), full credit from 4 */
+  var am = 0, av = 0; tr.as.forEach(function(a){ am += a; }); am /= tr.as.length; tr.as.forEach(function(a){ av += (a - am) * (a - am); });
+  var cv = Math.sqrt(av / tr.as.length) / (am || 1);   /* a ball keeps its size; arms, hands and shirts keep changing shape */
+  var cross = tr.xt && p[n - 1].t - tr.xt < AU.xwin ? AU.xbon : 1;   /* the ball crosses the net, players stay on their side */
+  return speed / (1 + 2.5 * rough) * Math.min(1, tr.hit / 6) * (.5 + .5 * (tr.c ? tr.c.pm : 1)) / (1 + AU.cvw * Math.max(0, cv - .35)) * cross;
+}
+function mhtSelect(C, t){
+  var T = AU.tl || (AU.tl = []), K = AU.k, pairs = [], tU = {}, cU = {};
+  T.forEach(function(tr){
+    var n = tr.p.length, L = tr.p[n - 1], P = n > 1 ? tr.p[n - 2] : null, r = P ? (t - L.t) / Math.max(1, L.t - P.t) : 0;
+    tr.px = P ? L.x + (L.x - P.x) * r : L.x; tr.py = P ? L.y + (L.y - P.y) * r : L.y; tr.ry = P ? L.y - (L.y - P.y) * r : L.y; tr.v = P ? Math.hypot(L.x - P.x, L.y - P.y) : 0; tr.m = null;
+  });
+  /* match against the straight-on guess AND the bounced guess (vertical speed flipped), so a track survives a bounce */
+  T.forEach(function(tr, ti){ C.forEach(function(c, ci){ var d = Math.min(Math.hypot(c.x - tr.px, c.y - tr.py), Math.hypot(c.x - tr.px, c.y - tr.ry)); if (d < 8 * K + tr.v * 1.5) pairs.push([d, ti, ci]); }); });
+  pairs.sort(function(a, b){ return a[0] - b[0]; });
+  pairs.forEach(function(p){ if (!tU[p[1]] && !cU[p[2]]){ tU[p[1]] = cU[p[2]] = 1; T[p[1]].m = C[p[2]]; } });
+  T.forEach(function(tr){
+    if (!tr.m){ tr.miss++; return; }
+    tr.p.push({x:tr.m.x, y:tr.m.y, t:t}); tr.as.push(tr.m.a); if (tr.p.length > 12){ tr.p.shift(); tr.as.shift(); } tr.hit++; tr.miss = 0; tr.c = tr.m;
+    var sd = AU.cal ? sideOf(tr.m) : -1; if (sd > -1 && tr.sd > -1 && sd !== tr.sd) tr.xt = t; tr.sd = sd;
+  });
+  C.forEach(function(c, ci){ if (!cU[ci] && T.length < 14) T.push({p:[{x:c.x, y:c.y, t:t}], as:[c.a], hit:1, miss:0, id:AU.tid = (AU.tid || 0) + 1, c:c, sd:AU.cal ? sideOf(c) : -1, xt:0}); });
+  T = AU.tl = T.filter(function(tr){ return tr.miss <= (tr.hit >= 4 ? 5 : 1) && t - tr.p[tr.p.length - 1].t < 150; });
+  var best = null, cur = null;
+  T.forEach(function(tr){ tr.s = trScore(tr); if (tr.id === AU.tsel) cur = tr; if (tr.hit >= 3 && tr.s > AU.tmin && (!best || tr.s > best.s)) best = tr; });
+  if (cur && cur.s > AU.tmin * .6 && best && best !== cur && best.s < cur.s * 1.4) best = cur;   /* stickiness */
+  if (!best || best.miss){ return null; }
+  if (best.id !== AU.tsel){ AU.tsel = best.id; AU.trk = best.p.slice(0, -1); }   /* switched to another track: take over its history */
+  return best.c;
 }
 function drawAuto(b, t){
   var c = $('autoCv'), x = c.getContext('2d'), sx = c.width / AU.W, sy = c.height / AU.H;
@@ -1161,7 +1236,7 @@ function mlInit(){ var rnd = function(){ return (Math.random() - .5) * .6; }; ML
 mlInit();
 function mlFeat(a, bw, bh, cx, cy, r, g, b, pred){
   var con = 0; if (AU.bg){ var o = ((cy | 0) * AU.W + (cx | 0)) * 3; con = (Math.abs(r - AU.bg[o]) + Math.abs(g - AU.bg[o + 1]) + Math.abs(b - AU.bg[o + 2])) / 765; }
-  return [a / (AU.ta || 20), a / (bw * bh), Math.max(bw / bh, bh / bw) - 1, r / 255, g / 255, b / 255, (r + g + b) / 765, con, pred ? Math.hypot(cx - pred.x, cy - pred.y) / 20 : .5, cy / AU.H, cx / AU.W];
+  return [a / ((AU.ta || 20) * AU.k * AU.k), a / (bw * bh), Math.max(bw / bh, bh / bw) - 1, r / 255, g / 255, b / 255, (r + g + b) / 765, con, pred ? Math.hypot(cx - pred.x, cy - pred.y) / (20 * AU.k) : .5, cy / AU.H, cx / AU.W];
 }
 function mlFwd(f, hOut){
   var o = ML.b2, j, k; for (j = 0; j < NH; j++){ var z = ML.b1[j]; for (k = 0; k < NF; k++) z += ML.W1[j * NF + k] * ((f[k] - ML.mu[k]) / ML.sd[k]); var h = Math.tanh(z); if (hOut) hOut[j] = h; o += ML.W2[j] * h; }
@@ -1188,7 +1263,7 @@ function mlTrain(){
 function mlLabel(best){
   if (!AU.mlOn || AU.tch || AU.wz >= 0 || !best) return;
   var k = trkS(), n = k.length; if (n < 5) return; var a = k[n - 1], b = k[n - 3], c = k[n - 5];
-  if (Math.abs(a.x - 2 * b.x + c.x) > 4 || Math.abs(a.y - 2 * b.y + c.y) > 4 || ++lblN % 2) return;
+  if (Math.abs(a.x - 2 * b.x + c.x) > 4 * AU.k || Math.abs(a.y - 2 * b.y + c.y) > 4 * AU.k || ++lblN % 2) return;
   if (best.f) mlAdd(best.f, 1);
   var neg = 0; (AU.cands || []).forEach(function(q){ if (q.f !== best.f && neg < 3){ mlAdd(q.f, 0); neg++; } });
 }
@@ -1209,7 +1284,7 @@ function bouncePt(k, n){
   var A = k[n - 4], B = k[n - 3], C = k[n - 2], D = k[n - 1], m1 = (B.y - A.y) / ((B.x - A.x) || 1e-6), m2 = (D.y - C.y) / ((D.x - C.x) || 1e-6);
   if (Math.abs(B.x - A.x) < .3 || Math.abs(D.x - C.x) < .3 || Math.abs(m1 - m2) < .05) return B;
   var x = (C.y - m2 * C.x - (A.y - m1 * A.x)) / (m1 - m2), y = A.y + m1 * (x - A.x);   /* incoming path meets outgoing path = bounce point, between camera frames */
-  return (x >= Math.min(B.x, C.x) - 2 && x <= Math.max(B.x, C.x) + 2) ? {x:x, y:y} : B;
+  return (x >= Math.min(B.x, C.x) - 2 * AU.k && x <= Math.max(B.x, C.x) + 2 * AU.k) ? {x:x, y:y} : B;
 }
 /* ---------- two or more camera phones must agree before a point counts ---------- */
 var CAMS = ['Overhead', 'Left side', 'Right side'];
@@ -1225,7 +1300,7 @@ function phVote(p, n, auto, from){
 }
 /* ---------- recorder: saves pictures with the ball box already drawn (YOLO format) for training a bigger model ---------- */
 var RECD = {on:false, items:[], f:0};
-function smooth(){ var k = trkS(), n = k.length; if (n < 5) return false; var a = k[n - 1], b = k[n - 3], c = k[n - 5]; return Math.abs(a.x - 2 * b.x + c.x) <= 4 && Math.abs(a.y - 2 * b.y + c.y) <= 4; }
+function smooth(){ var k = trkS(), n = k.length; if (n < 5) return false; var a = k[n - 1], b = k[n - 3], c = k[n - 5]; return Math.abs(a.x - 2 * b.x + c.x) <= 4 * AU.k && Math.abs(a.y - 2 * b.y + c.y) <= 4 * AU.k; }
 function recToggle(){ RECD.on = !RECD.on; $('recBtn').textContent = RECD.on ? '⏹ Stop recording' : '📸 Record data'; toast(RECD.on ? 'Recording – just play (max 400 pictures)' : 'Stopped. Tap ⬇️ Export pictures'); beep(600, .05); }
 function recStep(best, t){
   if (!RECD.on || AU.tch || AU.wz >= 0 || RECD.items.length >= 400) return; RECD.f++;
@@ -1355,17 +1430,17 @@ function nnTeach(d){
   var fr = null, bd = 1e9; AU.fh.forEach(function(q){ var dd = Math.abs(q.t - d.t); if (dd < bd){ bd = dd; fr = q; } });
   if (!fr || bd > 25) return;
   var m = null, md = 6; fr.c.forEach(function(q){ var dd = Math.hypot(q.x - d.x, q.y - d.y); if (dd < md){ md = dd; m = q; } });
-  if (fr.b && Math.hypot(fr.b.x - d.x, fr.b.y - d.y) < 6) NN.okT = performance.now();   /* tracker was on the real ball */
+  if (fr.b && Math.hypot(fr.b.x - d.x, fr.b.y - d.y) < 6 * AU.k) NN.okT = performance.now();   /* tracker was on the real ball */
   if (!AU.mlOn) return;
   if (m){ mlAdd(m.f, 1); var neg = 0; fr.c.forEach(function(q){ if (q !== m && neg < 3){ mlAdd(q.f, 0); neg++; } }); }
-  else if (fr.b && fr.b.f && Math.hypot(fr.b.x - d.x, fr.b.y - d.y) > 12) mlAdd(fr.b.f, 0);   /* tracker followed something else */
+  else if (fr.b && fr.b.f && Math.hypot(fr.b.x - d.x, fr.b.y - d.y) > 12 * AU.k) mlAdd(fr.b.f, 0);   /* tracker followed something else */
 }
 /* merge the neural detection with the fast tracker: if they agree, refine the position; if the tracker saw nothing, trust the network. Stale detections (slow phone) are ignored. */
 function nnMerge(best, t){
   var d = NN.det; if (!NN.on || !d || NN.used === d || t - d.t > 250) return best;
   NN.used = d;
-  if (best && Math.hypot(best.x - d.x, best.y - d.y) < 8){ best.x = (best.x + d.x) / 2; best.y = (best.y + d.y) / 2; return best; }
-  if (d.conf >= .45) return {x:d.x, y:d.y, a:AU.ta || 20, f:null, bw:3, bh:3, c:[255, 255, 255]};
+  if (best && Math.hypot(best.x - d.x, best.y - d.y) < 8 * AU.k){ best.x = (best.x + d.x) / 2; best.y = (best.y + d.y) / 2; return best; }
+  if (d.conf >= .45) return {x:d.x, y:d.y, a:(AU.ta || 20) * AU.k * AU.k, f:null, bw:3 * AU.k, bh:3 * AU.k, c:[255, 255, 255]};
   return best;
 }
 /* ---- full calibration wizard: background, table, net, floor, ball ---- */
@@ -1405,7 +1480,7 @@ function netCheck(b, t){
   var sd = sideOf(b);
   if (AU.ps !== undefined && AU.ps !== sd){
     var a = AU.netPts[0], c = AU.netPts[1], x1 = a[0] * AU.W, y1 = a[1] * AU.H, x2 = c[0] * AU.W, y2 = c[1] * AU.H;
-    if (x2 !== x1 && b.x >= Math.min(x1, x2) && b.x <= Math.max(x1, x2)){ var ny = y1 + (y2 - y1) * (b.x - x1) / (x2 - x1); if (b.y > ny + 2){ toast('🥅 Net'); AU.last = -1; AU.cool = t + 1200; } }
+    if (x2 !== x1 && b.x >= Math.min(x1, x2) && b.x <= Math.max(x1, x2)){ var ny = y1 + (y2 - y1) * (b.x - x1) / (x2 - x1); if (b.y > ny + 2 * AU.k){ toast('🥅 Net'); AU.last = -1; AU.cool = t + 1200; } }
   }
   AU.ps = sd;
 }
@@ -1421,7 +1496,7 @@ function finishTeach(){
   var med = function(k){ var a = S.map(function(c){ return c[k]; }).sort(function(p, q){ return p - q; }); return a[a.length >> 1]; };
   var m = [med(0), med(1), med(2)], ds = S.map(function(c){ return Math.pow(c[0] - m[0], 2) + Math.pow(c[1] - m[1], 2) + Math.pow(c[2] - m[2], 2); }).sort(function(p, q){ return p - q; });
   AU.lc = m; AU.lcr = Math.max(1800, Math.min(9000, ds[Math.floor(ds.length * .9)] * 2.2)); AU.ball = 'custom';
-  save('alc', AU.lc); save('alcr', AU.lcr); save('aball', 'custom'); if (TA.length){ AU.ta = TA[TA.length >> 1]; save('ata', AU.ta); } syncBall(); toast('🎓 Learned your ball (' + S.length + ' samples)'); buzz(40); beep(950, .15); if (AU.wz === 8) wizNext();
+  save('alc', AU.lc); save('alcr', AU.lcr); save('aball', 'custom'); if (TA.length){ AU.ta = TA[TA.length >> 1] / (AU.k * AU.k); save('ata', AU.ta); }   /* stored as 128-grid area so it fits any detail level */ syncBall(); toast('🎓 Learned your ball (' + S.length + ' samples)'); buzz(40); beep(950, .15); if (AU.wz === 8) wizNext();
 }
 function startCal(){ AU.cs = 1; AU.calPts = []; AU.cal = null; AU.last = -1; toast(CALMSG[0]); beep(700, .06); }
 function calTap(e, r){
